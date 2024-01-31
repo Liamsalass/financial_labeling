@@ -20,6 +20,14 @@ def main(args):
     print('Mean val in last column:', label_count.iloc[:, -1].mean())
     print('Median val in last column:', label_count.iloc[:, -1].median())
     print('Std val in last column:', label_count.iloc[:, -1].std())
+
+    train = pd.read_csv(args.root + 'train_sample.csv')
+    test = pd.read_csv(args.root + 'test_sample.csv')
+    print('Train shape:', train.shape)
+    print('Test shape:', test.shape)
+    print('Train head:\n', train.head())
+    print('\nTest head:\n', test.head())
+
   
     
 
