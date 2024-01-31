@@ -2,14 +2,7 @@ import pandas as pd
 import numpy as np
 import argparse as ap
 
-
-
-
-
-
-
-
-def main(args):
+def fnxl_analysis(args):
     print ('Root directory: ', args.root)
     label_count = pd.read_csv(args.root + 'labelCount.csv')
     print(label_count.shape)
@@ -28,11 +21,8 @@ def main(args):
     print('Train head:\n', train.head())
     print('\nTest head:\n', test.head())
 
+
   
-    
-
-
-
 
 if __name__ == '__main__':
     parser = ap.ArgumentParser()
@@ -44,4 +34,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    main(args)
+    fnxl_analysis(args)
