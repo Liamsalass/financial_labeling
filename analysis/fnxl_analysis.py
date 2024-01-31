@@ -14,6 +14,12 @@ def main(args):
     label_count = pd.read_csv(args.root + 'labelCount.csv')
     print(label_count.shape)
     print('Head:\n', label_count.head())
+    print('\nMax val in last column:', label_count.iloc[:, -1].max())
+    print('Min val in last column:', label_count.iloc[:, -1].min())
+
+    print('Mean val in last column:', label_count.iloc[:, -1].mean())
+    print('Median val in last column:', label_count.iloc[:, -1].median())
+    print('Std val in last column:', label_count.iloc[:, -1].std())
   
     
 
