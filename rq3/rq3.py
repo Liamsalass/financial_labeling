@@ -40,6 +40,7 @@ model = AutoModelForTokenClassification.from_pretrained(
 # NOTE: 139 labels, but each of them has I- and B-, (along with 0), leading to num_labels=279
 
 # Training arguments
+# TODO: Tweak hyperparameters. These were the defaults from the Hugging Face tutorial.
 training_args = TrainingArguments(
     output_dir="rq3_model",
     learning_rate=2e-5,
