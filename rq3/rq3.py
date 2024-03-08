@@ -6,10 +6,12 @@ from transformers import AutoTokenizer, DataCollatorForTokenClassification, Auto
 # Load the train, val, and test dataset splits.
 train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
 val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
+test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
 
-# NOTE: first 64 samples taken to see that code runs end to end on CPU. Remove below 2 lines.
+# NOTE: first 64 samples taken to see that code runs end to end on CPU. Remove below 3 lines.
 train_dataset = train_dataset.select(range(64))
 val_dataset = val_dataset.select(range(64))
+test_dataset = test_dataset.select(range(64))
 
 
 # Getting array of tags/labels
@@ -21,6 +23,7 @@ tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
 # Tokenize each section of the dataset.
 tokenized_train = train_dataset.map(tokenize_and_align_labels, batched=True)
 tokenized_val = val_dataset.map(tokenize_and_align_labels, batched=True)
+tokenized_test = test_dataset.map(tokenize_and_align_labels, batched=True)
 
 # For creating batches of examples
 data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
@@ -33,6 +36,7 @@ label2id = {value: i for i, value in enumerate(finer_tag_names)}
 model = AutoModelForTokenClassification.from_pretrained(
     "google/mobilebert-uncased", num_labels=279, id2label=id2label, label2id=label2id
 )
+# TODO: Include support to use SEC-BERT? Want to compare the efficiency and performance of both.
 # NOTE: 139 labels, but each of them has I- and B-, (along with 0), leading to num_labels=279
 
 # Training arguments
@@ -60,4 +64,12 @@ trainer = Trainer(
 )
 
 # Train the model
+print("\n\n-----TRAINING-----")
 trainer.train()
+
+
+# Evaluate the model on the test set
+print("\n\n-----TESTING-----")
+testing_results = trainer.evaluate(eval_dataset=tokenized_test)
+print("Testing Results Dict: \n" + testing_results)
+# TODO: Create code that can make inferences based on classifier saved to rq3_model

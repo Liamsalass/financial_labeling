@@ -9,6 +9,7 @@ def tokenize_and_align_labels(examples):
     Function to align tokens and labels. 
     """
     # Load MobileBERT tokenizer.
+    # TODO: Change the tokenizer which is used when testing. 
     tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
 
     tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
