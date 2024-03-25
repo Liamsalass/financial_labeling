@@ -2,23 +2,26 @@ import datasets
 from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics
 from transformers import AutoTokenizer, DataCollatorForTokenClassification, AutoModelForTokenClassification, TrainingArguments, Trainer
 
+# TODO: Adding device information so this can run on a GPU.
 
 # Load the train, val, and test dataset splits.
 train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
 val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
 
-# NOTE: first 64 samples taken to see that code runs end to end on CPU. Remove below 2 lines.
-train_dataset = train_dataset.select(range(128))
-val_dataset = val_dataset.select(range(128))
+# NOTE: first few samples taken to see that code runs end to end on CPU. Remove below 2 lines.
+train_dataset = train_dataset.select(range(256))
+val_dataset = val_dataset.select(range(256))
 
 
 # Getting array of tags/labels
 finer_tag_names = train_dataset.features["ner_tags"].feature.names
 
 # Load MobileBERT tokenizer.
+# TODO: Take advantage of performance benefits from MobileBertTokenizerFast
 tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
-# TODO: Is this trained? Do I need to train it? Report on size?
-# NOTE: Can/should the SEC-BERT BASE tokenizer be used here?
+# https://stackoverflow.com/questions/64320883/the-size-of-tensor-a-707-must-match-the-size-of-tensor-b-512-at-non-singleto
+# TODO: Check for differences in between tokenizer here and in the tokenize_and_align_labels function. Should there be any? (Right now there isn't any)
+# TODO: revisit model_max_length. Try to find what this should be for MobileBERT
 
 # Tokenize each section of the dataset.
 tokenized_train = train_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)

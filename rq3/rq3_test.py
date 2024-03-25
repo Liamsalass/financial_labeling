@@ -34,8 +34,8 @@ def test_model(model_name):
         print("SEC-BERT-SHAPE Parameter Count: ", model.num_parameters())
     elif model_name == "MobileBERT":
         # TODO: Need to adjust this so that it can find the best run for MobileBERT
-        model = AutoModelForTokenClassification.from_pretrained("rq3_model/checkpoint-16")
-        tokenizer = AutoTokenizer.from_pretrained("rq3_model/checkpoint-16")
+        model = AutoModelForTokenClassification.from_pretrained("rq3_model/checkpoint-32")
+        tokenizer = AutoTokenizer.from_pretrained("rq3_model/checkpoint-32")
         print("Testing MobileBERT")
         print("MobileBERT Parameter Count: ", model.num_parameters())
 
@@ -43,7 +43,6 @@ def test_model(model_name):
     # ner_tags = test_dataset["ner_tags"]
     # ids = test_dataset["id"]
     
-    # https://huggingface.co/docs/evaluate/en/base_evaluator
     classifier = pipeline(task="token-classification", model=model, tokenizer=tokenizer)
     task_evaluator = evaluator(task="token-classification")
     # TODO: How to batch this?
@@ -52,6 +51,7 @@ def test_model(model_name):
         model_or_pipeline=classifier,
         data=test_dataset
     )
+    # TODO: Use code from utils? Ensure that MobileBERT is relying on same format for input data as train/val
 
     print(model_name + " Results: ")
     print(test_results)
