@@ -18,7 +18,7 @@ finer_tag_names = train_dataset.features["ner_tags"].feature.names
 # Load MobileBERT tokenizer.
 tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
 # TODO: Is this trained? Do I need to train it? Report on size?
-# NOTE: Can the SEC-BERT BASE tokenizer be used here?
+# NOTE: Can/should the SEC-BERT BASE tokenizer be used here?
 
 # Tokenize each section of the dataset.
 tokenized_train = train_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)

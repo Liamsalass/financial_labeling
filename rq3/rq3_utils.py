@@ -1,6 +1,8 @@
 import datasets
 import evaluate
 import numpy as np
+import re
+import spacy
 from transformers import AutoTokenizer
 
 def tokenize_and_align_labels_mobilebert(examples):
@@ -8,9 +10,9 @@ def tokenize_and_align_labels_mobilebert(examples):
     https://huggingface.co/docs/transformers/en/tasks/token_classification
     Function to align tokens and labels. 
     """
-    # Load MobileBERT tokenizer.
     # TODO: Change the tokenizer which is used when testing?
     # TODO: Fast tokenizer?
+    # Load MobileBERT tokenizer.
     tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
 
     tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
@@ -62,3 +64,48 @@ def compute_metrics(p):
         "f1": results["overall_f1"],
         "accuracy": results["overall_accuracy"],
     }
+
+
+def sec_bert_num_preprocess(examples):
+    """
+    From https://huggingface.co/nlpaueb/sec-bert-num
+    """
+    # TODO: Can we make this parallelizable somehow? Seems slow. Same for SEC-BERT-SHAPE
+    spacy_tokenizer = spacy.load("en_core_web_sm")
+
+    for idx, sentence in enumerate(examples["tokens"]):
+        tokens = [spacy_tokenizer(tok).text for tok in sentence]
+        processed_text = []
+        for token in tokens:
+            if re.fullmatch(r"(\d+[\d,.]*)|([,.]\d+)", token):
+                processed_text.append('[NUM]')
+            else:
+                processed_text.append(token)
+        examples["tokens"][idx] = processed_text
+    return examples
+
+
+# NOTE: spacy needs to install en_core_web_sm through Python: python -m spacy download en_core_web_sm
+# TODO: Update dependencies or setup?
+def sec_bert_shape_preprocess(examples):
+    """
+    From: https://huggingface.co/nlpaueb/sec-bert-shape
+    """
+    tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
+    
+    spacy_tokenizer = spacy.load("en_core_web_sm")
+
+    for idx, sentence in enumerate(examples["tokens"]):
+        tokens = [spacy_tokenizer(tok).text for tok in sentence]
+        processed_text = []
+        for token in tokens:
+            if re.fullmatch(r"(\d+[\d,.]*)|([,.]\d+)", token):
+                shape = '[' + re.sub(r'\d', 'X', token) + ']'
+                if shape in tokenizer.additional_special_tokens:
+                    processed_text.append(shape)
+                else:
+                    processed_text.append('[NUM]')
+            else:
+                processed_text.append(token)
+        examples["tokens"][idx] = processed_text
+    return examples
