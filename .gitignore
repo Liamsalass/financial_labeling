@@ -1,3 +1,4 @@
 **__pycache__**
 rq3/rq3_model/**
+**AttentionXML**
 # NOTE: excluding rq3 model files for now. They may need to be uploaded at some point when they are finalized though.
