@@ -3,13 +3,14 @@ import evaluate
 import numpy as np
 from transformers import AutoTokenizer
 
-def tokenize_and_align_labels(examples):
+def tokenize_and_align_labels_mobilebert(examples):
     """
     https://huggingface.co/docs/transformers/en/tasks/token_classification
     Function to align tokens and labels. 
     """
     # Load MobileBERT tokenizer.
-    # TODO: Change the tokenizer which is used when testing. 
+    # TODO: Change the tokenizer which is used when testing?
+    # TODO: Fast tokenizer?
     tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
 
     tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
@@ -39,7 +40,7 @@ def compute_metrics(p):
     Function for evaluating model inferences.
     """
     seqeval = evaluate.load("seqeval")
-    train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
+    train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")  # Loading train dataset to get tag names.
     finer_tag_names = train_dataset.features["ner_tags"].feature.names
 
     predictions, labels = p

@@ -1,17 +1,15 @@
 import datasets
-from rq3_utils import tokenize_and_align_labels, compute_metrics
+from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics
 from transformers import AutoTokenizer, DataCollatorForTokenClassification, AutoModelForTokenClassification, TrainingArguments, Trainer
 
 
 # Load the train, val, and test dataset splits.
 train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
 val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
-test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
 
-# NOTE: first 64 samples taken to see that code runs end to end on CPU. Remove below 3 lines.
+# NOTE: first 64 samples taken to see that code runs end to end on CPU. Remove below 2 lines.
 train_dataset = train_dataset.select(range(64))
 val_dataset = val_dataset.select(range(64))
-test_dataset = test_dataset.select(range(64))
 
 
 # Getting array of tags/labels
@@ -19,11 +17,12 @@ finer_tag_names = train_dataset.features["ner_tags"].feature.names
 
 # Load MobileBERT tokenizer.
 tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
+# TODO: Is this trained? Do I need to train it? Report on size?
+# NOTE: Can the SEC-BERT BASE tokenizer be used here?
 
 # Tokenize each section of the dataset.
-tokenized_train = train_dataset.map(tokenize_and_align_labels, batched=True)
-tokenized_val = val_dataset.map(tokenize_and_align_labels, batched=True)
-tokenized_test = test_dataset.map(tokenize_and_align_labels, batched=True)
+tokenized_train = train_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
+tokenized_val = val_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
 
 # For creating batches of examples
 data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
@@ -36,6 +35,8 @@ label2id = {value: i for i, value in enumerate(finer_tag_names)}
 model = AutoModelForTokenClassification.from_pretrained(
     "google/mobilebert-uncased", num_labels=279, id2label=id2label, label2id=label2id
 )
+
+print("MobileBERT Parameter Count: ", model.num_parameters())
 # TODO: Include support to use SEC-BERT? Want to compare the efficiency and performance of both.
 # NOTE: 139 labels, but each of them has I- and B-, (along with 0), leading to num_labels=279
 
@@ -67,10 +68,3 @@ trainer = Trainer(
 # Train the model
 print("\n\n-----TRAINING-----")
 trainer.train()
-
-
-# Evaluate the model on the test set
-print("\n\n-----TESTING-----")
-testing_results = trainer.evaluate(eval_dataset=tokenized_test)
-print("Testing Results Dict: \n" + testing_results)
-# TODO: Create code that can make inferences based on classifier saved to rq3_model
