@@ -8,8 +8,8 @@ train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
 val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
 
 # NOTE: first 64 samples taken to see that code runs end to end on CPU. Remove below 2 lines.
-train_dataset = train_dataset.select(range(64))
-val_dataset = val_dataset.select(range(64))
+train_dataset = train_dataset.select(range(128))
+val_dataset = val_dataset.select(range(128))
 
 
 # Getting array of tags/labels
