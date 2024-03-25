@@ -244,6 +244,7 @@ dependencies:
       - torchaudio==2.2.1
       - torchvision==0.17.1
       - transformers==4.38.2
+      - spacy==3.7.4
       - xxhash==3.4.1
       - yarl==1.9.4
 prefix: C:\Users\Liam\anaconda3\envs\financial_labeling
