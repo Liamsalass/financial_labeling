@@ -1,4 +1,4 @@
-2024-04-03 16:28:19.706402: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  SSE4.1 SSE4.2 AVX AVX2 AVX512F AVX512_VNNI FMA
+2024-04-03 16:50:05.308726: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  SSE4.1 SSE4.2 AVX AVX2 AVX512F AVX512_VNNI FMA
 To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
 Asking to truncate to max_length but no maximum length is provided and the model has no predefined maximum length. Default to no truncation.
 /Users/lsandler/opt/anaconda3/envs/ELEC390/lib/python3.9/site-packages/seqeval/metrics/v1.py:57: UndefinedMetricWarning: Recall and F-score are ill-defined and being set to 0.0 in labels with no true samples. Use `zero_division` parameter to control this behavior.
@@ -11,6 +11,6 @@ precision:  0.0
 recall:  0.0 
 f1:  0.0 
 accuracy:  0.21432964329643298 
-total_time_in_seconds:  3.3103795519999997 
-samples_per_second:  19.333130535238396 
-latency_in_seconds:  0.051724680499999995
+total_time_in_seconds:  2.8085713980000007 
+samples_per_second:  22.78738580246696 
+latency_in_seconds:  0.04388392809375001

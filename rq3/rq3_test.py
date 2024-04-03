@@ -62,11 +62,10 @@ if __name__ == "__main__":
     # https://stackoverflow.com/questions/75932605/getting-the-input-text-from-transformers-pipeline
     classifier_pipeline = pipeline(task="token-classification", model=model, tokenizer=tokenizer)
     task_evaluator = evaluator("token-classification")
+    task_evaluator.zero_division = 0
     test_results = task_evaluator.compute(model_or_pipeline=classifier_pipeline, data=test_dataset, metric="seqeval")
-    # TODO: Look into the zero_division parameter for recall and F-score
 
     print(model_name + " Results: ")
-    # TODO: Save test results somewhere
     print("precision: ", test_results["overall_precision"], "\nrecall: ", test_results["overall_recall"],
           "\nf1: ", test_results["overall_f1"], "\naccuracy: ", test_results["overall_accuracy"], 
           "\ntotal_time_in_seconds: ", test_results["total_time_in_seconds"], "\nsamples_per_second: ", test_results["samples_per_second"],
