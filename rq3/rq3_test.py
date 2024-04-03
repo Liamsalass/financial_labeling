@@ -1,43 +1,61 @@
 import datasets
+import argparse
+import os
 from evaluate import evaluator
 from transformers import AutoModelForTokenClassification, AutoTokenizer
 from transformers import pipeline
 from rq3_utils import sec_bert_num_preprocess, sec_bert_shape_preprocess
 
-def test_model(model_name):
-    """
-    Function which will test the pretrained SEC-BERT and the MobileBERT models on FiNER-139.
-    """
-    
+
+if __name__ == "__main__":
+    # Loading the test dataset. NOTE: In future, can possibly specify path to this dataset with command line args. Not needed right now.
     test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
-    # NOTE: first few samples taken to see that code runs end to end on CPU. Remove this to test full thing
-    test_dataset = test_dataset.select(range(128))
-    # TODO: Does this need to be tokenized or does HF do it automatically? Assume it is done in the pipeline since tokenizers are attached.
-    if model_name == "SEC-BERT-BASE":
+
+    # Parsing command line args
+    parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Testing code')
+    parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
+    parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the test set. If left empty, use the entire test set.')
+    parser.add_argument('-checkpoint_path', type=str, default="rq3_model/checkpoint-32", help='Specify the relative path to the Hugging Face model checkpoint to evaluate.')
+    arguments = parser.parse_args()
+    
+    model_name = arguments.model_name
+    subset_size = arguments.subset
+    checkpoint_path = arguments.checkpoint_path
+
+    # Verifying command line args
+    assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
+
+    if subset_size != -1:
+        assert 0 < subset_size < len(test_dataset)
+        test_dataset = test_dataset.select(range(subset_size))  # Selects the specified # of samples from the subset argument.
+        print("Testing " + model_name + " on subset of FiNER-139 test set with " + str(subset_size) + " samples.")
+    else:
+        print("Testing " + model_name + " on full FiNER-139 test set with " + str(len(test_dataset)) + " samples.")
+    
+    if model_name == "MobileBERT":
+        # NOTE: Check Below doesn't check for the contents of the directory. Could possibly verify this to ensure that the weights are in the folder.
+        # NOTE: Checkpoint paths are only being used for MobileBERT. May need to use them for the SEC-BERT models since these don't come with classifier weights.
+        full_checkpoint_path = os.getcwd() + "/" + checkpoint_path
+        assert os.path.isdir(full_checkpoint_path) is True  # Verify checkpoint dir exists
+        print("Testing " + model_name + " checkpoint stored in the " + checkpoint_path + " folder")
+
+    if model_name == "MobileBERT":
+        model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+    elif model_name == "SEC-BERT-BASE":
         # NOTE: SEC-BERT Classifier weights and biases are not loaded. The HF pretrained model is meant for fill-masking. See if we can load these weights from somewhere?
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base")
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-base")
-        print("Testing SEC-BERT-BASE")
-        print("SEC-BERT-BASE Parameter Count: ", model.num_parameters())
     elif model_name == "SEC-BERT-NUM":
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-num")
         test_dataset = test_dataset.map(sec_bert_num_preprocess, batched=True)  # Apply SEC-BERT-NUM preprocessing
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-num")
-        print("Testing SEC-BERT-NUM")
-        print("SEC-BERT-NUM Parameter Count: ", model.num_parameters())
     elif model_name == "SEC-BERT-SHAPE":
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-shape")
         test_dataset = test_dataset.map(sec_bert_shape_preprocess, batched=True)  # Apply SEC-BERT-SHAPE preprocessing
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
-        print("Testing SEC-BERT-SHAPE")
-        print("SEC-BERT-SHAPE Parameter Count: ", model.num_parameters())
-    elif model_name == "MobileBERT":
-        # TODO: Need to adjust this so that it can find the best run for MobileBERT
-        mobilebert_best_run = "rq3_model/checkpoint-32"
-        model = AutoModelForTokenClassification.from_pretrained(mobilebert_best_run)
-        tokenizer = AutoTokenizer.from_pretrained(mobilebert_best_run)
-        print("Testing MobileBERT")
-        print("MobileBERT Parameter Count: ", model.num_parameters())
+    
+    print(model_name + " Parameter Count: ", model.num_parameters())
 
     # TODO: Batch this?
     # Possible Batching link: https://huggingface.co/docs/transformers/en/main_classes/pipelines
@@ -49,14 +67,7 @@ def test_model(model_name):
 
     print(model_name + " Results: ")
     # TODO: Save test results somewhere
-    print("precision: ", test_results["overall_precision"], "\nrecall: ", test_results["overall_recall"], 
+    print("precision: ", test_results["overall_precision"], "\nrecall: ", test_results["overall_recall"],
           "\nf1: ", test_results["overall_f1"], "\naccuracy: ", test_results["overall_accuracy"], 
-          "\ntotal_time_in_seconds: ", test_results["total_time_in_seconds"], "\nsamples_per_second: ", test_results["samples_per_second"], "\nlatency_in_seconds: ", test_results["latency_in_seconds"])
-
-test_model("SEC-BERT-BASE")
-print("\n")
-test_model("SEC-BERT-NUM")
-print("\n")
-test_model("SEC-BERT-SHAPE")
-print("\n")
-test_model("MobileBERT")
+          "\ntotal_time_in_seconds: ", test_results["total_time_in_seconds"], "\nsamples_per_second: ", test_results["samples_per_second"],
+          "\nlatency_in_seconds: ", test_results["latency_in_seconds"])
