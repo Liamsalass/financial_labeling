@@ -6,7 +6,7 @@ from transformers import AutoModelForTokenClassification, AutoTokenizer
 from transformers import pipeline
 from rq3_utils import sec_bert_num_preprocess, sec_bert_shape_preprocess
 
-
+# TODO: Device support for GPU runs.
 if __name__ == "__main__":
     # Loading the test dataset. NOTE: In future, can possibly specify path to this dataset with command line args. Not needed right now.
     test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
@@ -62,8 +62,8 @@ if __name__ == "__main__":
     # https://stackoverflow.com/questions/75932605/getting-the-input-text-from-transformers-pipeline
     classifier_pipeline = pipeline(task="token-classification", model=model, tokenizer=tokenizer)
     task_evaluator = evaluator("token-classification")
-    task_evaluator.zero_division = 0
     test_results = task_evaluator.compute(model_or_pipeline=classifier_pipeline, data=test_dataset, metric="seqeval")
+    # TODO: Investigate how to disable zero division error.
 
     print(model_name + " Results: ")
     print("precision: ", test_results["overall_precision"], "\nrecall: ", test_results["overall_recall"],
