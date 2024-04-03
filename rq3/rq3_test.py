@@ -10,10 +10,9 @@ def test_model(model_name):
     """
     
     test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
-    # NOTE: first 64 samples taken to see that code runs end to end on CPU. Remove this to test full thing
-    test_dataset = test_dataset.select(range(16))
+    # NOTE: first few samples taken to see that code runs end to end on CPU. Remove this to test full thing
+    test_dataset = test_dataset.select(range(128))
     # TODO: Does this need to be tokenized or does HF do it automatically? Assume it is done in the pipeline since tokenizers are attached.
-
     if model_name == "SEC-BERT-BASE":
         # NOTE: SEC-BERT Classifier weights and biases are not loaded. The HF pretrained model is meant for fill-masking. See if we can load these weights from somewhere?
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base")
@@ -34,28 +33,25 @@ def test_model(model_name):
         print("SEC-BERT-SHAPE Parameter Count: ", model.num_parameters())
     elif model_name == "MobileBERT":
         # TODO: Need to adjust this so that it can find the best run for MobileBERT
-        model = AutoModelForTokenClassification.from_pretrained("rq3_model/checkpoint-32")
-        tokenizer = AutoTokenizer.from_pretrained("rq3_model/checkpoint-32")
+        mobilebert_best_run = "rq3_model/checkpoint-32"
+        model = AutoModelForTokenClassification.from_pretrained(mobilebert_best_run)
+        tokenizer = AutoTokenizer.from_pretrained(mobilebert_best_run)
         print("Testing MobileBERT")
         print("MobileBERT Parameter Count: ", model.num_parameters())
 
-    # tokens = test_dataset["tokens"]
-    # ner_tags = test_dataset["ner_tags"]
-    # ids = test_dataset["id"]
-    
-    classifier = pipeline(task="token-classification", model=model, tokenizer=tokenizer)
-    task_evaluator = evaluator(task="token-classification")
-    # TODO: How to batch this?
+    # TODO: Batch this?
     # Possible Batching link: https://huggingface.co/docs/transformers/en/main_classes/pipelines
-    test_results = task_evaluator.compute(
-        model_or_pipeline=classifier,
-        data=test_dataset
-    )
-    # TODO: Use code from utils? Ensure that MobileBERT is relying on same format for input data as train/val
+    # https://stackoverflow.com/questions/75932605/getting-the-input-text-from-transformers-pipeline
+    classifier_pipeline = pipeline(task="token-classification", model=model, tokenizer=tokenizer)
+    task_evaluator = evaluator("token-classification")
+    test_results = task_evaluator.compute(model_or_pipeline=classifier_pipeline, data=test_dataset, metric="seqeval")
+    # TODO: Look into the zero_division parameter for recall and F-score
 
     print(model_name + " Results: ")
-    print(test_results)
-
+    # TODO: Save test results somewhere
+    print("precision: ", test_results["overall_precision"], "\nrecall: ", test_results["overall_recall"], 
+          "\nf1: ", test_results["overall_f1"], "\naccuracy: ", test_results["overall_accuracy"], 
+          "\ntotal_time_in_seconds: ", test_results["total_time_in_seconds"], "\nsamples_per_second: ", test_results["samples_per_second"], "\nlatency_in_seconds: ", test_results["latency_in_seconds"])
 
 test_model("SEC-BERT-BASE")
 print("\n")

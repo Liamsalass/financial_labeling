@@ -20,8 +20,6 @@ finer_tag_names = train_dataset.features["ner_tags"].feature.names
 # TODO: Take advantage of performance benefits from MobileBertTokenizerFast
 tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
 # https://stackoverflow.com/questions/64320883/the-size-of-tensor-a-707-must-match-the-size-of-tensor-b-512-at-non-singleto
-# TODO: Check for differences in between tokenizer here and in the tokenize_and_align_labels function. Should there be any? (Right now there isn't any)
-# TODO: revisit model_max_length. Try to find what this should be for MobileBERT
 
 # Tokenize each section of the dataset.
 tokenized_train = train_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
@@ -41,7 +39,7 @@ model = AutoModelForTokenClassification.from_pretrained(
 
 print("MobileBERT Parameter Count: ", model.num_parameters())
 # TODO: Include support to use SEC-BERT? Want to compare the efficiency and performance of both.
-# NOTE: 139 labels, but each of them has I- and B-, (along with 0), leading to num_labels=279
+# 139 labels, but each of them has I- and B-, (along with 0), leading to num_labels=279
 
 # Training arguments
 # TODO: Tweak hyperparameters. These were the defaults from the Hugging Face tutorial.
@@ -56,6 +54,8 @@ training_args = TrainingArguments(
     save_strategy="epoch",
     load_best_model_at_end=True
 )
+
+# NOTE: https://huggingface.co/learn/nlp-course/en/chapter7/2 , custom training loop?
 
 # Model Trainer object
 trainer = Trainer(

@@ -16,8 +16,7 @@ def tokenize_and_align_labels_mobilebert(examples):
     # Load MobileBERT tokenizer.
     tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
 
-    # Pad to longest sequence in batch, truncate to max model length
-    tokenized_inputs = tokenizer(examples["tokens"], padding=True, truncation=True, is_split_into_words=True, max_length=512)
+    tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
 
     label_all_tokens = True # Bool which is enabled to label all tokens. Otherwise, first token only.
 
@@ -109,7 +108,8 @@ def compute_metrics(p):
         [finer_tag_names[l] for (p, l) in zip(prediction, label) if l != -100]
         for prediction, label in zip(predictions, labels)
     ]
-
+    
+    # TODO: Get micro/macro results for some metrics? Possibly timing info as well.
     results = seqeval.compute(predictions=true_predictions, references=true_labels)
     return {
         "precision": results["overall_precision"],
