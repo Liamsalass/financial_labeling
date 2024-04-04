@@ -3,7 +3,7 @@ import evaluate
 import numpy as np
 import re
 import spacy
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForTokenClassification
 
 def tokenize_and_align_labels_mobilebert(examples):
     """
@@ -14,7 +14,7 @@ def tokenize_and_align_labels_mobilebert(examples):
     # TODO: Change the tokenizer which is used when testing?
     # TODO: Fast tokenizer?
     # Load MobileBERT tokenizer.
-    tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
+    tokenizer = return_mobilebert_tokenizer()
 
     tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
 
@@ -111,9 +111,47 @@ def compute_metrics(p):
     
     # TODO: Get micro/macro results for some metrics? Possibly timing info as well.
     results = seqeval.compute(predictions=true_predictions, references=true_labels)
+    
     return {
         "precision": results["overall_precision"],
         "recall": results["overall_recall"],
         "f1": results["overall_f1"],
         "accuracy": results["overall_accuracy"],
     }
+
+
+# TODO: Document 2 functions below.
+def return_mobilebert_tokenizer():
+    """
+    Attempts to import the MobileBERT tokenizer from the Hugging Face Hub. (https://huggingface.co/google/mobilebert-uncased)
+    If this fails, it loads the MobileBERT tokenizer from the rq3/mobilebert-uncased folder.
+    NOTE: Loading the local version requires downloading all files from https://huggingface.co/google/mobilebert-uncased/tree/main except the rust model and placing them in the rq3/mobilebert-uncased folder
+    """
+    try:
+        # Attempts to get tokenizer from HF hub
+        tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
+    except OSError:
+        # If fails, look in local rq3/mobilebert-uncased folder
+        tokenizer = AutoTokenizer.from_pretrained("mobilebert-uncased", local_files_only=True)
+    
+    return tokenizer
+
+def return_mobilebert_model(id2label, label2id):
+    """
+    Attempts to import the MobileBERT model for token classification from the Hugging Face Hub. (https://huggingface.co/google/mobilebert-uncased)
+    If this fails, it loads the MobileBERT model from the rq3/mobilebert-uncased folder.
+    NOTE: Loading the local version requires downloading all files from https://huggingface.co/google/mobilebert-uncased/tree/main except the rust model and placing them in the rq3/mobilebert-uncased folder
+    """
+    # 139 labels, but each of them has I- and B-, (along with 0), leading to num_labels=279
+    try:
+        # Attempts to get model from HF hub
+        model = AutoModelForTokenClassification.from_pretrained(
+            "google/mobilebert-uncased", num_labels=279, id2label=id2label, label2id=label2id
+        )
+    except OSError:
+        # If fails, look in local rq3/mobilebert-uncased folder
+        model = AutoModelForTokenClassification.from_pretrained(
+            "mobilebert-uncased", num_labels=279, id2label=id2label, label2id=label2id, from_tf=True
+        )
+    
+    return model

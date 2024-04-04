@@ -1,6 +1,7 @@
 import datasets
 import argparse
 import os
+import torch
 from evaluate import evaluator
 from transformers import AutoModelForTokenClassification, AutoTokenizer
 from transformers import pipeline
@@ -8,6 +9,10 @@ from rq3_utils import sec_bert_num_preprocess, sec_bert_shape_preprocess
 
 # TODO: Device support for GPU runs.
 if __name__ == "__main__":
+    print("CUDA available: ", torch.cuda.is_available())
+    print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
+    # TODO: Verify device usage?
+
     # Loading the test dataset. NOTE: In future, can possibly specify path to this dataset with command line args. Not needed right now.
     test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
 
@@ -64,6 +69,9 @@ if __name__ == "__main__":
     task_evaluator = evaluator("token-classification")
     test_results = task_evaluator.compute(model_or_pipeline=classifier_pipeline, data=test_dataset, metric="seqeval")
     # TODO: Investigate how to disable zero division error.
+
+    # NOTE: See error note in seqeval_error.txt, which only comes up with subset of size 024, not 512 when testing.
+    # This error is similar to this one from Stack: https://stackoverflow.com/questions/69596496/with-cpupytorch-indexerror-index-out-of-range-in-self-with-cudaassertion
 
     print(model_name + " Results: ")
     print("precision: ", test_results["overall_precision"], "\nrecall: ", test_results["overall_recall"],

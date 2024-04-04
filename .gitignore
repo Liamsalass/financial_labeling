@@ -1,4 +1,7 @@
 **__pycache__**
 rq3/rq3_model/**
+rq3/mobilebert-uncased/**
 **AttentionXML**
-# NOTE: excluding rq3 model files for now. They may need to be uploaded at some point when they are finalized though.
+!rq3/rq3_model/.gitkeep
+# NOTE: excluding rq3 model files for now. Gitkeep is there to upload the folder
+# They may need to be uploaded at some point when they are finalized though.

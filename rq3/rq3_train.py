@@ -1,13 +1,19 @@
 import datasets
 import argparse
 import os
-from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics
-from transformers import AutoTokenizer, DataCollatorForTokenClassification, AutoModelForTokenClassification, TrainingArguments, Trainer
+import torch
+from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model
+from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer
 
-# TODO: Adding device information so this can run on a GPU.
 
 if __name__ == "__main__":
+    print("CUDA available: ", torch.cuda.is_available())
+    print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
+    # TODO: How to verify the use of device in the Trainer call in HF?
+    # https://discuss.huggingface.co/t/setting-specific-device-for-trainer/784/19
+    
     # Load the train and val dataset splits.
+    # TODO: Add progress bar/update for dataset loading?
     train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
     val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
 
@@ -48,15 +54,15 @@ if __name__ == "__main__":
     assert 0 < learning_rate < 1
     assert 1 <= train_batch_size_per_device <= len(train_dataset)
     assert 1 <= val_batch_size_per_device <= len(val_dataset)
-    assert 1 <= epochs <= 10  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.2.
+    assert 1 <= epochs <= 10  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.4.2.
     assert 0 < weight_decay < 1
 
     # Getting array of tags/labels
     finer_tag_names = train_dataset.features["ner_tags"].feature.names
 
     # Load MobileBERT tokenizer.
-    # TODO: Take advantage of performance benefits from MobileBertTokenizerFast
-    tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
+    tokenizer = return_mobilebert_tokenizer()
+
     # https://stackoverflow.com/questions/64320883/the-size-of-tensor-a-707-must-match-the-size-of-tensor-b-512-at-non-singleto
 
     # Tokenize each section of the dataset.
@@ -70,11 +76,8 @@ if __name__ == "__main__":
     id2label = {i: element for i, element in enumerate(finer_tag_names)}
     label2id = {value: i for i, value in enumerate(finer_tag_names)}
 
-    # Importing the MobileBERT model
-    # 139 labels, but each of them has I- and B-, (along with 0), leading to num_labels=279
-    model = AutoModelForTokenClassification.from_pretrained(
-        "google/mobilebert-uncased", num_labels=279, id2label=id2label, label2id=label2id
-    )
+    # Uses the function in rq3_utils to get the pretrained MobileBERT model.
+    model = return_mobilebert_model(id2label, label2id)
 
     print("MobileBERT Parameter Count: ", model.num_parameters())
     # TODO: Include support to use SEC-BERT variants for training? Want to compare the efficiency and performance of both. 
@@ -103,7 +106,7 @@ if __name__ == "__main__":
         eval_dataset=tokenized_val,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metrics
     )
 
     # Train the model
