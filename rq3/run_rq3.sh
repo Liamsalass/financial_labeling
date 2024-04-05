@@ -12,6 +12,5 @@ python3 rq3_test.py -model_name SEC-BERT-SHAPE -subset "$subset_size" 2>&1 | tee
 
 
 # Bain Lab/Windows 
-# NOTE: Shell not running yet on Bain machines. Possibly will look into another executable which can.
+# NOTE: Shell doesn't run on Bain machines. Possibly will look into another executable which can.
 python rq3_test.py -model_name MobileBERT -subset "$subset_size" -checkpoint_path "rq3_model/checkpoint-32" > results/MobileBERT-Subset-$subset_size.txt 2>&1 
-echo "\n\n"

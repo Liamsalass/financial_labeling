@@ -8,7 +8,11 @@ from transformers import DataCollatorForTokenClassification, TrainingArguments, 
 
 if __name__ == "__main__":
     print("CUDA available: ", torch.cuda.is_available())
-    print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
+    if torch.cuda.is_available():
+        print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
+    else:
+        print("CUDA unavailable, using CPU")
+        
     # TODO: How to verify the use of device in the Trainer call in HF?
     # https://discuss.huggingface.co/t/setting-specific-device-for-trainer/784/19
     

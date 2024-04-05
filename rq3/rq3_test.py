@@ -5,16 +5,20 @@ import torch
 from evaluate import evaluator
 from transformers import AutoModelForTokenClassification, AutoTokenizer
 from transformers import pipeline
-from rq3_utils import sec_bert_num_preprocess, sec_bert_shape_preprocess
+from rq3_utils import sec_bert_num_preprocess, sec_bert_shape_preprocess, calculate_macro_metrics
 
 # TODO: Device support for GPU runs.
 if __name__ == "__main__":
     print("CUDA available: ", torch.cuda.is_available())
-    print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
+    if torch.cuda.is_available():
+        print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
+    else:
+        print("CUDA unavailable, using CPU")
     # TODO: Verify device usage?
 
     # Loading the test dataset. NOTE: In future, can possibly specify path to this dataset with command line args. Not needed right now.
     test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
+    # TODO: Do we need to map the dataset like we did in rq3_train with tokenize and align labels?
 
     # Parsing command line args
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Testing code')
@@ -68,13 +72,15 @@ if __name__ == "__main__":
     classifier_pipeline = pipeline(task="token-classification", model=model, tokenizer=tokenizer)
     task_evaluator = evaluator("token-classification")
     test_results = task_evaluator.compute(model_or_pipeline=classifier_pipeline, data=test_dataset, metric="seqeval")
-    # TODO: Investigate how to disable zero division error.
-
     # NOTE: See error note in seqeval_error.txt, which only comes up with subset of size 024, not 512 when testing.
     # This error is similar to this one from Stack: https://stackoverflow.com/questions/69596496/with-cpupytorch-indexerror-index-out-of-range-in-self-with-cudaassertion
 
+    # TODO: Investigate how to disable zero division error.
+    macro_precision, macro_recall, macro_f1 = calculate_macro_metrics(test_results)
+
     print(model_name + " Results: ")
-    print("precision: ", test_results["overall_precision"], "\nrecall: ", test_results["overall_recall"],
-          "\nf1: ", test_results["overall_f1"], "\naccuracy: ", test_results["overall_accuracy"], 
-          "\ntotal_time_in_seconds: ", test_results["total_time_in_seconds"], "\nsamples_per_second: ", test_results["samples_per_second"],
-          "\nlatency_in_seconds: ", test_results["latency_in_seconds"])
+    print("micro/overall precision: ", test_results["overall_precision"], "\nmicro/overall recall: ", test_results["overall_recall"],
+          "\nmicro/overall f1: ", test_results["overall_f1"], "\noverall accuracy: ", test_results["overall_accuracy"], 
+          "\nmacro precision: ", macro_precision, "\nmacro recall: ", macro_recall,
+          "\nmacro f1: ", macro_f1, "\ntotal_time_in_seconds: ", test_results["total_time_in_seconds"],
+          "\nsamples_per_second: ", test_results["samples_per_second"], "\nlatency_in_seconds: ", test_results["latency_in_seconds"])
