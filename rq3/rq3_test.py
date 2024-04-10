@@ -3,18 +3,15 @@ import argparse
 import os
 import torch
 from evaluate import evaluator
-from transformers import AutoModelForTokenClassification, AutoTokenizer
-from transformers import pipeline
-from rq3_utils import sec_bert_num_preprocess, sec_bert_shape_preprocess, calculate_macro_metrics
+from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification, TrainingArguments, Trainer
+from rq3_utils import tokenize_and_align_labels_mobilebert, sec_bert_num_preprocess, sec_bert_shape_preprocess, compute_metrics
 
-# TODO: Device support for GPU runs.
 if __name__ == "__main__":
     print("CUDA available: ", torch.cuda.is_available())
     if torch.cuda.is_available():
         print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
     else:
         print("CUDA unavailable, using CPU")
-    # TODO: Verify device usage?
 
     # Loading the test dataset. NOTE: In future, can possibly specify path to this dataset with command line args. Not needed right now.
     test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
@@ -25,11 +22,15 @@ if __name__ == "__main__":
     parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
     parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the test set. If left empty, use the entire test set.')
     parser.add_argument('-checkpoint_path', type=str, default="rq3_model/checkpoint-32", help='Specify the relative path to the Hugging Face model checkpoint to evaluate.')
+    parser.add_argument('-save_results', type=bool, default=True, help='Specify whether or not to save the test metrics to a file.')
+    parser.add_argument('-batch_size', type=int, default=16, help='Batch size per device')
     arguments = parser.parse_args()
     
     model_name = arguments.model_name
     subset_size = arguments.subset
     checkpoint_path = arguments.checkpoint_path
+    save_results = arguments.save_results
+    batch_size_per_device = arguments.batch_size
 
     # Verifying command line args
     assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
@@ -48,39 +49,75 @@ if __name__ == "__main__":
         assert os.path.isdir(full_checkpoint_path) is True  # Verify checkpoint dir exists
         print("Testing " + model_name + " checkpoint stored in the " + checkpoint_path + " folder")
 
+    assert 1 <= batch_size_per_device <= len(test_dataset)
+
     if model_name == "MobileBERT":
         model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
         tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+        tokenized_test = test_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)  # Apply SEC-BERT-NUM preprocessing
+        
     elif model_name == "SEC-BERT-BASE":
         # NOTE: SEC-BERT Classifier weights and biases are not loaded. The HF pretrained model is meant for fill-masking. See if we can load these weights from somewhere?
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base")
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-base")
     elif model_name == "SEC-BERT-NUM":
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-num")
-        test_dataset = test_dataset.map(sec_bert_num_preprocess, batched=True)  # Apply SEC-BERT-NUM preprocessing
+        tokenized_test = test_dataset.map(sec_bert_num_preprocess, batched=True)  # Apply SEC-BERT-NUM preprocessing
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-num")
     elif model_name == "SEC-BERT-SHAPE":
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-shape")
-        test_dataset = test_dataset.map(sec_bert_shape_preprocess, batched=True)  # Apply SEC-BERT-SHAPE preprocessing
+        tokenized_test = test_dataset.map(sec_bert_shape_preprocess, batched=True)  # Apply SEC-BERT-SHAPE preprocessing
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
     
     print(model_name + " Parameter Count: ", model.num_parameters())
 
-    # TODO: Batch this?
-    # Possible Batching link: https://huggingface.co/docs/transformers/en/main_classes/pipelines
-    # https://stackoverflow.com/questions/75932605/getting-the-input-text-from-transformers-pipeline
-    classifier_pipeline = pipeline(task="token-classification", model=model, tokenizer=tokenizer)
-    task_evaluator = evaluator("token-classification")
-    test_results = task_evaluator.compute(model_or_pipeline=classifier_pipeline, data=test_dataset, metric="seqeval")
-    # NOTE: See error note in seqeval_error.txt, which only comes up with subset of size 024, not 512 when testing.
-    # This error is similar to this one from Stack: https://stackoverflow.com/questions/69596496/with-cpupytorch-indexerror-index-out-of-range-in-self-with-cudaassertion
 
-    # TODO: Investigate how to disable zero division error.
-    macro_precision, macro_recall, macro_f1 = calculate_macro_metrics(test_results)
+    training_args = TrainingArguments(
+        output_dir=checkpoint_path,
+        per_device_eval_batch_size=batch_size_per_device
+    )
 
-    print(model_name + " Results: ")
-    print("micro/overall precision: ", test_results["overall_precision"], "\nmicro/overall recall: ", test_results["overall_recall"],
-          "\nmicro/overall f1: ", test_results["overall_f1"], "\noverall accuracy: ", test_results["overall_accuracy"], 
-          "\nmacro precision: ", macro_precision, "\nmacro recall: ", macro_recall,
-          "\nmacro f1: ", macro_f1, "\ntotal_time_in_seconds: ", test_results["total_time_in_seconds"],
-          "\nsamples_per_second: ", test_results["samples_per_second"], "\nlatency_in_seconds: ", test_results["latency_in_seconds"])
+    data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
+
+    # Model Trainer object, used for evaluation. Used this object since it is modular (for testing each model type),
+    #  and was having issues using HF pipelines and tokenized data.
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        eval_dataset=tokenized_test,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        compute_metrics=compute_metrics
+    )
+
+    test_results = trainer.evaluate(eval_dataset=tokenized_test)
+
+    # TODO: Latency metric, possibly add batch size in reporting?
+    # Print to console
+    print(model_name + " model from checkpoint: " + checkpoint_path + "\nResults: \nmicro/overall precision: ",
+            test_results["eval_micro/overall precision"], "\nmicro/overall recall: ", test_results["eval_micro/overall recall"],
+            "\nmicro/overall f1: ", test_results["eval_micro/overall f1"], "\noverall accuracy: ", test_results["eval_overall accuracy"], 
+            "\nmacro precision: ", test_results["eval_macro precision"], "\nmacro recall: ", test_results["eval_macro recall"],
+            "\nmacro f1: ", test_results["eval_macro f1"], "\ntotal_time_in_seconds: ", test_results["eval_runtime"],
+            "\nsamples_per_second: ", test_results["eval_samples_per_second"])
+    
+
+    
+    if save_results:
+        # Make file name for results file
+        if subset_size == -1:
+            results_full_path = os.getcwd() + "/results/" + model_name + "-test-results-full.txt"
+        else:
+            results_full_path = os.getcwd() + "/results/" + model_name + "-test-results-subset-" + str(subset_size) + ".txt"
+        
+        # Attempt to write results to txt file.
+        try: 
+            with open(results_full_path, "w") as results_file:
+                print(model_name + " model from checkpoint: " + checkpoint_path + "\nResults: \nmicro/overall precision: ",
+                        test_results["eval_micro/overall precision"], "\nmicro/overall recall: ", test_results["eval_micro/overall recall"],
+                        "\nmicro/overall f1: ", test_results["eval_micro/overall f1"], "\noverall accuracy: ", test_results["eval_overall accuracy"], 
+                        "\nmacro precision: ", test_results["eval_macro precision"], "\nmacro recall: ", test_results["eval_macro recall"],
+                        "\nmacro f1: ", test_results["eval_macro f1"], "\ntotal_time_in_seconds: ", test_results["eval_runtime"],
+                        "\nsamples_per_second: ", test_results["eval_samples_per_second"], file=results_file)
+        except:
+            print("Failed to save test metrics to the file: " + results_full_path)

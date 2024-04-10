@@ -12,14 +12,13 @@ if __name__ == "__main__":
         print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
     else:
         print("CUDA unavailable, using CPU")
-        
-    # TODO: How to verify the use of device in the Trainer call in HF?
-    # https://discuss.huggingface.co/t/setting-specific-device-for-trainer/784/19
     
     # Load the train and val dataset splits.
     # TODO: Add progress bar/update for dataset loading?
     train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
+    print("Train dataset loaded")
     val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
+    print("Val dataset loaded")
 
     # Parsing command line args
     # TODO: Tune hyperparameters, defaults here are left from the Hugging Face tutorial

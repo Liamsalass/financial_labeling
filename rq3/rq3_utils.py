@@ -3,6 +3,8 @@ import evaluate
 import numpy as np
 import re
 import spacy
+import os
+import requests
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 
 def tokenize_and_align_labels_mobilebert(examples):
@@ -11,8 +13,6 @@ def tokenize_and_align_labels_mobilebert(examples):
     https://colab.research.google.com/github/huggingface/notebooks/blob/main/examples/token_classification.ipynb#scrollTo=vc0BSBLIIrJQ
     Function to align tokens and labels. 
     """
-    # TODO: Change the tokenizer which is used when testing?
-    # TODO: Fast tokenizer?
     # Load MobileBERT tokenizer.
     tokenizer = return_mobilebert_tokenizer()
 
@@ -44,6 +44,7 @@ def tokenize_and_align_labels_mobilebert(examples):
     tokenized_inputs["labels"] = labels
     return tokenized_inputs
 
+
 def sec_bert_num_preprocess(examples):
     """
     From https://huggingface.co/nlpaueb/sec-bert-num
@@ -64,7 +65,7 @@ def sec_bert_num_preprocess(examples):
 
 
 # NOTE: spacy needs to install en_core_web_sm through Python: python -m spacy download en_core_web_sm
-# TODO: Update dependencies or setup?
+# TODO: Update dependencies or setup file to reflect this?
 def sec_bert_shape_preprocess(examples):
     """
     From: https://huggingface.co/nlpaueb/sec-bert-shape
@@ -126,7 +127,7 @@ def compute_metrics(p):
 
 def calculate_macro_metrics(results):
     """
-    Given a Hugging Face seqevak results dictionary, calculate the macro precision, recall, and f1.
+    Given a Hugging Face seqeval results dictionary, calculate the macro precision, recall, and f1.
     """
     # Keys which do not have individual precision, recall, or f1 scores.
     forbidden_keys = ["overall_precision", "overall_recall", "overall_f1", "overall_accuracy", "total_time_in_seconds", "samples_per_second", "latency_in_seconds"]
@@ -145,18 +146,17 @@ def calculate_macro_metrics(results):
     return macro_precision, macro_recall, macro_f1
 
 
-# TODO: Document 2 functions below.
 def return_mobilebert_tokenizer():
     """
     Attempts to import the MobileBERT tokenizer from the Hugging Face Hub. (https://huggingface.co/google/mobilebert-uncased)
-    If this fails, it loads the MobileBERT tokenizer from the rq3/mobilebert-uncased folder.
-    NOTE: Loading the local version requires downloading all files from https://huggingface.co/google/mobilebert-uncased/tree/main except the rust model and placing them in the rq3/mobilebert-uncased folder
+    If this fails, it loads the MobileBERT tokenizer from the rq3/mobilebert-uncased folder (after downloading using the check_mobilebert_folder function).
     """
     try:
         # Attempts to get tokenizer from HF hub
         tokenizer = AutoTokenizer.from_pretrained("google/mobilebert-uncased")
     except OSError:
-        # If fails, look in local rq3/mobilebert-uncased folder
+        # If fails to fetch from Hub, look in local rq3/mobilebert-uncased folder
+        check_mobilebert_folder()
         tokenizer = AutoTokenizer.from_pretrained("mobilebert-uncased", local_files_only=True)
     
     return tokenizer
@@ -164,8 +164,7 @@ def return_mobilebert_tokenizer():
 def return_mobilebert_model(id2label, label2id):
     """
     Attempts to import the MobileBERT model for token classification from the Hugging Face Hub. (https://huggingface.co/google/mobilebert-uncased)
-    If this fails, it loads the MobileBERT model from the rq3/mobilebert-uncased folder.
-    NOTE: Loading the local version requires downloading all files from https://huggingface.co/google/mobilebert-uncased/tree/main except the rust model and placing them in the rq3/mobilebert-uncased folder
+    If this fails, it loads the MobileBERT model from the rq3/mobilebert-uncased folder (after downloading using the check_mobilebert_folder function).
     """
     # 139 labels, but each of them has I- and B-, (along with 0), leading to num_labels=279
     try:
@@ -174,9 +173,58 @@ def return_mobilebert_model(id2label, label2id):
             "google/mobilebert-uncased", num_labels=279, id2label=id2label, label2id=label2id
         )
     except OSError:
-        # If fails, look in local rq3/mobilebert-uncased folder
+        # If fails to fetch from Hub, look in local rq3/mobilebert-uncased folder
+        check_mobilebert_folder()
         model = AutoModelForTokenClassification.from_pretrained(
-            "mobilebert-uncased", num_labels=279, id2label=id2label, label2id=label2id, from_tf=True
+            "mobilebert-uncased", num_labels=279, id2label=id2label, label2id=label2id, local_files_only=True
         )
     
     return model
+
+
+def check_mobilebert_folder(verbose=False):
+    """
+    Checks if the folder rq3/mobilebert-uncased exists and contains all necessary files to load the pretrained model from local files instead of the Hugging Face Hub.
+    """
+    folder_path = "mobilebert-uncased"
+    file_names = ["config.json", "gitattributes", "pytorch_model.bin", "tokenizer.json", "vocab.txt"]
+
+    if os.path.isdir(folder_path):  # mobilebert-uncased exists, checking folder contents
+        if verbose is True:
+            print("The folder " + folder_path + " exists.")
+
+        missing_files = []
+        # Check if the files exist in the folder
+        for file_name in file_names:
+            file_path = os.path.join(folder_path, file_name)
+            if not os.path.isfile(file_path):
+                # If missing, keep track of it in an array.
+                missing_files.append(file_name)
+                if verbose is True:
+                    print("File: " + file_name + " is missing.")
+        
+        # Downloads all missing files
+        if len(missing_files) > 0:
+            download_mobilebert_files(missing_files)
+    
+    else:  # Folder doesn't exist, installing Hugging Face mobilebert-uncased model contents to this folder now.
+        if verbose is True:
+            print("The folder " + folder_path + " does not exist. Installing all MobileBERT files to the rq3/mobilebert-uncased folder.")
+        
+        # Creating mobilebert-uncased dir and switching to it
+        os.mkdir('mobilebert-uncased')
+        download_mobilebert_files(file_names)
+
+
+def download_mobilebert_files(file_names):
+    """
+    Uses the requests directory to download all files from the mobilebert-uncased model from Hugging Face.
+    """
+    os.chdir('mobilebert-uncased')
+    for file_name in file_names:
+                # Downloading each file to the mobilebert-uncased folder
+                response = requests.get("https://huggingface.co/google/mobilebert-uncased/resolve/main/" + file_name + "?download=true")
+                open(file_name, "wb").write(response.content)
+    
+    os.chdir('..')  # Move back one level to return to rq3 as the working directory
+
