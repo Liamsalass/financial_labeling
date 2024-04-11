@@ -11,4 +11,6 @@ if errorlevel 1 (
 
 call conda activate financial_labeling_bain
 
+call code .
+
 echo "Done"

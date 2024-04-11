@@ -1,15 +1,17 @@
 import argparse
 import os
-import numpy as np
 import datasets
 import torch
 import torch_optimizer
+import wandb
 from peft import get_peft_model
 from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, sec_bert_num_preprocess, sec_bert_shape_preprocess, return_mobilebert_peft_config
 from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer
 
 
 if __name__ == "__main__":
+    wandb.init(mode="disabled")  # Disable wandb for this file.
+
     print("CUDA available: ", torch.cuda.is_available())
     if torch.cuda.is_available():
         print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
@@ -128,20 +130,20 @@ if __name__ == "__main__":
 
     # Optimizer for each model.
     if model_name == "MobileBERT":
-        optimizer = torch_optimizer.Lamb(model.parameters, lr=learning_rate)
+        optimizer = torch_optimizer.Lamb(model.parameters(), lr=learning_rate)
     else:  # SEC-BERT family
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # Training arguments
     training_args = TrainingArguments(
         output_dir=checkpoint_path,
-        optimizer=optimizer,
         per_device_train_batch_size=train_batch_size_per_device,
         per_device_eval_batch_size=val_batch_size_per_device,
         num_train_epochs=epochs,
         evaluation_strategy="epoch",
         save_strategy="epoch",
-        load_best_model_at_end=True
+        load_best_model_at_end=True,
+        use_cpu=False
     )
 
     # NOTE: https://huggingface.co/learn/nlp-course/en/chapter7/2 , custom training loop?
@@ -149,6 +151,7 @@ if __name__ == "__main__":
     # Model Trainer object
     trainer = Trainer(
         model=model,
+        optimizers=[optimizer, None],  # TODO: How to account for automatic lr scheduler?
         args=training_args,
         train_dataset=tokenized_train,
         eval_dataset=tokenized_val,
