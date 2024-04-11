@@ -1,7 +1,18 @@
 **__pycache__**
-rq3/rq3_model/**
-rq3/mobilebert-uncased/**
 **AttentionXML**
-!rq3/rq3_model/.gitkeep
-# NOTE: excluding rq3 model files for now. Gitkeep is there to upload the folder
+
+# Ignored RQ3 Items
+rq3/mobilebert-uncased/**
+rq3/rq3_mobilebert_model/**
+rq3/rq3_mobilebert_peft/**
+rq3/rq3_sec_bert_base/**
+rq3/rq3_sec_bert_num/**
+rq3/rq3_sec_bert_shape/**
+
+!rq3/mobilebert-uncased/.gitkeep
+!rq3/rq3_mobilebert_model/.gitkeep
+!rq3/rq3_sec_bert_base/.gitkeep
+!rq3/rq3_sec_bert_num/.gitkeep
+!rq3/rq3_sec_bert_shape/.gitkeep
+# NOTE: excluding rq3 model files for now. .gitkeep files are there to upload the folder
 # They may need to be uploaded at some point when they are finalized though.
