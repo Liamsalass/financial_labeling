@@ -116,7 +116,7 @@ if __name__ == "__main__":
     if use_peft is True:
         peft_config = return_mobilebert_peft_config(inference_mode=False)
         model = get_peft_model(model, peft_config)
-        print(model_name + " post-lora parameter overview: " + model.print_trainable_parameters())
+        print(model_name + " post-lora parameter overview: ", model.print_trainable_parameters())
 
 
     # Training arguments
