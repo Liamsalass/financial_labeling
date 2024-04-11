@@ -174,6 +174,7 @@ dependencies:
       - joblib==1.4.0
       - langcodes==3.3.0
       - murmurhash==1.0.10
+      - peft==0.10.0
       - preshed==3.0.9
       - psutil==5.9.8
       - pyarrow-hotfix==0.6
@@ -189,8 +190,9 @@ dependencies:
       - srsly==2.4.8
       - thinc==8.2.3
       - threadpoolctl==3.4.0
+      - torch-optimizer==0.3.0
       - typer==0.9.4
+      - wandb 0.16.6
       - wasabi==1.1.2
       - weasel==0.3.4
-      - peft==0.10.0
 prefix: C:\ProgramData\Anaconda3\envs\financial_labeling_bain

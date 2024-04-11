@@ -1,11 +1,46 @@
 import datasets
 import argparse
 import os
+import numpy as np
 import torch
+import torch_optimizer
 from peft import get_peft_model
 from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, sec_bert_num_preprocess, sec_bert_shape_preprocess, return_mobilebert_peft_config
 from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer
 
+
+def wandb_hp_space_sec_bert(trial):
+    """
+    Weights and biases hyperparameter search space for SEC-BERT family.
+    Code starting point: https://huggingface.co/docs/transformers/en/hpo_train
+    Values taken from MobileBERT paper: https://arxiv.org/pdf/2004.02984.pdf
+    """
+    return {
+        "method": "grid", # TODO: Consider random method, grid may be very costly
+        "metric": {"name": "objective", "goal": "minimize"},
+        "parameters": {
+            "learning_rate": {"values": [5e-5, 3e-5, 2e-5]},
+            "per_device_train_batch_size": {"values": [16, 32]},
+            "epochs": {"values": [2, 3, 4]}
+        },
+    }
+
+
+def wandb_hp_space_mobilebert(trial):
+    """
+    Weights and biases hyperparameter search space for MobileBERT. 
+    Code starting point: https://huggingface.co/docs/transformers/en/hpo_train
+    Values taken from MobileBERT paper: https://arxiv.org/pdf/2004.02984.pdf
+    """
+    return {
+        "method": "grid",  # TODO: Consider random method, grid may be very costly
+        "metric": {"name": "objective", "goal": "minimize"},
+        "parameters": {
+            "epochs": {"values": np.arange(start=2, stop=11, step=1)}, # 2-10 inclusive
+            "learning_rate": {"values": np.arange(start=1e-5, stop=11e-5, step=1e-5)},  # 1e-5 to 10e-5 inclusive
+            "per_device_train_batch_size": {"values": [16, 32, 48]}
+        },
+    }
 
 if __name__ == "__main__":
     print("CUDA available: ", torch.cuda.is_available())
@@ -22,7 +57,6 @@ if __name__ == "__main__":
     print("Val dataset loaded")
 
     # Parsing command line args
-    # TODO: Tune hyperparameters, defaults here are left from the Hugging Face tutorial
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Training code')
     parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
     parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the train and val set. If left empty, use the entire train and val sets.')
@@ -31,10 +65,11 @@ if __name__ == "__main__":
     parser.add_argument('-train_batch_size', type=int, default=16, help='Train batch size per device')
     parser.add_argument('-val_batch_size', type=int, default=16, help='Val batch size per device')
     parser.add_argument('-epochs', type=int, default=2)
-    parser.add_argument('-weight_decay', type=float, default=0.01)
     parser.add_argument('-peft', type=int, default=1, help='Specify whether or not to use PEFT during training [0/1].')
+    parser.add_argument('-hyperparameter_search', type=int, default=0, help='Specify whether or not to run the hyperparameter search process for your selected model [0/1].')
     arguments = parser.parse_args()
     
+    # Command line args into variables
     model_name = arguments.model_name
     subset_size = arguments.subset
     checkpoint_path = arguments.output_checkpoint_path
@@ -42,8 +77,8 @@ if __name__ == "__main__":
     train_batch_size_per_device = arguments.train_batch_size
     val_batch_size_per_device = arguments.val_batch_size
     epochs = arguments.epochs
-    weight_decay = arguments.weight_decay
     use_peft = arguments.peft
+    hyperparameter_search = arguments.hyperparameter_search
 
     # Verifying command line args
     assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
@@ -67,8 +102,10 @@ if __name__ == "__main__":
     assert 1 <= train_batch_size_per_device <= len(train_dataset)
     assert 1 <= val_batch_size_per_device <= len(val_dataset)
     assert 1 <= epochs <= 10  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.4.2.
-    assert 0 < weight_decay < 1
     assert use_peft in [0, 1]
+    assert hyperparameter_search in [0, 1]
+
+    # TODO: Implement assertions on hyperparameters that are model-specific.
 
     if use_peft == 1:
         # NOTE: No PEFT for SEC-BERT models for now. Revisit- may need to train with PEFT to train SEC-BERT family
@@ -102,9 +139,11 @@ if __name__ == "__main__":
         tokenized_train = train_dataset.map(sec_bert_shape_preprocess, batched=True) # Apply SEC-BERT-SHAPE preprocessing
         tokenized_val = val_dataset.map(sec_bert_shape_preprocess, batched=True)
 
-    # NOTE: SEC-BERT family of models is assumed to have a linear classification layer after. 
-    # Check FiNER-139 paper for and GitHub for true architecture.
-    # TODO: Check if compute_metrics will still be valid without the tokenize and align. May need to create another one for SEC-BERT family?
+    # NOTE: SEC-BERT family of models is assumed to have a linear classification layer after BERT. Unsure if there should be something else.
+        # Check FiNER-139 paper for and GitHub for true architecture.
+    
+    # TODO: Check if compute_metrics will still be valid without the tokenize and align labels function.
+        #  May need to create another one for SEC-BERT family?
 
     # For creating batches of examples
     data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
@@ -115,8 +154,7 @@ if __name__ == "__main__":
         model = get_peft_model(model, peft_config)
         print(model_name + " post-lora parameter overview: ")
         model.print_trainable_parameters()
-    else:
-        # Only train the output/classification layer, freeze all other gradients
+    else:  # Only train the output/classification layer, freeze all other gradients
         for name, param in model.named_parameters():
             if "classifier" not in name:
                 param.requires_grad = False
@@ -124,15 +162,21 @@ if __name__ == "__main__":
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(model_name, "Trainable Parameter Count: ", str(trainable_params))
 
+    # Optimizer for each model.
+    # TODO: verify how hyperparameter sweeping works with these learning rates.
+    if model_name == "MobileBERT":
+        optimizer = torch_optimizer.Lamb(model.parameters, lr=learning_rate)
+    else:  # SEC-BERT family
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
 
     # Training arguments
     training_args = TrainingArguments(
         output_dir=checkpoint_path,
-        learning_rate=learning_rate,
+        optimizer=optimizer,
         per_device_train_batch_size=train_batch_size_per_device,
         per_device_eval_batch_size=val_batch_size_per_device,
         num_train_epochs=epochs,
-        weight_decay=weight_decay,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True
@@ -151,6 +195,27 @@ if __name__ == "__main__":
         compute_metrics=compute_metrics
     )
 
-    # Train the model
-    print("\n\n-----TRAINING-----")
-    trainer.train()
+    if hyperparameter_search == 0: # Train the model
+        print("\n\n-----TRAINING-----")
+        trainer.train()
+
+    else:  # Hyperparameter search
+        # NOTE: Code not working yet- added this as a starting point for hyperparameter searching
+        print("\n\n-----PERFORMING HYPERPARAMETER SEARCH-----")
+
+        if model_name == "MobileBERT":
+            wand_hp_space = wandb_hp_space_mobilebert
+        else:  # SEC-BERT family
+            wand_hp_space = wandb_hp_space_sec_bert
+
+        
+        best_trial = trainer.hyperparameter_search(
+            direction="minimize",
+            backend="wandb",
+            hp_space=wand_hp_space,
+            n_trials=1,
+            compute_objective=compute_objective
+            # TODO: Implement compute objective
+        )
+
+        # TODO: Parse results from the best trial, understand what hyperparameter_search returns.
