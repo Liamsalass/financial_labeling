@@ -192,7 +192,7 @@ dependencies:
       - threadpoolctl==3.4.0
       - torch-optimizer==0.3.0
       - typer==0.9.4
-      - wandb 0.16.6
+      - wandb==0.16.6
       - wasabi==1.1.2
       - weasel==0.3.4
 prefix: C:\ProgramData\Anaconda3\envs\financial_labeling_bain

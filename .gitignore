@@ -8,6 +8,7 @@ rq3/rq3_mobilebert_peft/**
 rq3/rq3_sec_bert_base/**
 rq3/rq3_sec_bert_num/**
 rq3/rq3_sec_bert_shape/**
+rq3/wandb
 
 !rq3/mobilebert-uncased/.gitkeep
 !rq3/rq3_mobilebert_model/.gitkeep
