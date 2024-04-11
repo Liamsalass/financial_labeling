@@ -108,15 +108,16 @@ if __name__ == "__main__":
     # For creating batches of examples
     data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
 
-    print(model_name, "Total Parameter Count: ", model.num_parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(model_name, "Trainable Parameter Count: ", str(trainable_params))
-
     # PEFT
     if use_peft is True:
         peft_config = return_mobilebert_peft_config(inference_mode=False)
         model = get_peft_model(model, peft_config)
-        print(model_name + " post-lora parameter overview: ", model.print_trainable_parameters())
+        print(model_name + " post-lora parameter overview: ")
+        model.print_trainable_parameters()
+    else:
+        print(model_name, "Total Parameter Count: ", model.num_parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(model_name, "Trainable Parameter Count: ", str(trainable_params))
 
 
     # Training arguments

@@ -65,8 +65,6 @@ def sec_bert_num_preprocess(examples):
     return examples
 
 
-# NOTE: spacy needs to install en_core_web_sm through Python: python -m spacy download en_core_web_sm
-# TODO: Update dependencies or setup file to reflect this?
 def sec_bert_shape_preprocess(examples):
     """
     From: https://huggingface.co/nlpaueb/sec-bert-shape
@@ -115,7 +113,7 @@ def compute_metrics(p):
     results = seqeval.compute(predictions=true_predictions, references=true_labels)
     # Macro metric calculations
     macro_precision, macro_recall, macro_f1 = calculate_macro_metrics(results)
-    
+
     return {
         "micro/overall precision": results["overall_precision"],
         "micro/overall recall": results["overall_recall"],
@@ -123,7 +121,7 @@ def compute_metrics(p):
         "overall accuracy": results["overall_accuracy"],
         "macro precision": macro_precision,
         "macro recall": macro_recall,
-        "macro f1": macro_f1,
+        "macro f1": macro_f1
     }
 
 def calculate_macro_metrics(results):
