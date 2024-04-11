@@ -2,8 +2,9 @@ import datasets
 import argparse
 import os
 import torch
-from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model
-from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer
+from peft import get_peft_model
+from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, sec_bert_num_preprocess, sec_bert_shape_preprocess, return_mobilebert_peft_config
+from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer
 
 
 if __name__ == "__main__":
@@ -23,15 +24,18 @@ if __name__ == "__main__":
     # Parsing command line args
     # TODO: Tune hyperparameters, defaults here are left from the Hugging Face tutorial
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Training code')
-    parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the train and val set. If left empty, use the entire train and val sets.')
-    parser.add_argument('-output_checkpoint_path', type=str, default="rq3_model", help='Specify the relative path to the checkpoint folder.')
+    parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
+    parser.add_argument('-subset', type=int, default=64, help='Specify to use a subset of the train and val set. If left empty, use the entire train and val sets.')
+    parser.add_argument('-output_checkpoint_path', type=str, default="rq3_mobilebert_model", help='Specify the relative path to the checkpoint folder.')
     parser.add_argument('-lr', type=float, default=2e-5, help='Learning rate')
     parser.add_argument('-train_batch_size', type=int, default=16, help='Train batch size per device')
     parser.add_argument('-val_batch_size', type=int, default=16, help='Val batch size per device')
     parser.add_argument('-epochs', type=int, default=2)
     parser.add_argument('-weight_decay', type=float, default=0.01)
+    parser.add_argument('-peft', type=bool, default=True, help='Specify whether or not to use PEFT during training.')
     arguments = parser.parse_args()
     
+    model_name = arguments.model_name
     subset_size = arguments.subset
     checkpoint_path = arguments.output_checkpoint_path
     learning_rate = arguments.lr
@@ -39,20 +43,25 @@ if __name__ == "__main__":
     val_batch_size_per_device = arguments.val_batch_size
     epochs = arguments.epochs
     weight_decay = arguments.weight_decay
+    use_peft = arguments.peft
 
     # Verifying command line args
+    assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
+
     if subset_size != -1:
         assert 0 < subset_size < len(val_dataset)
         # Selects the specified # of samples from the subset argument.
         train_dataset = train_dataset.select(range(subset_size))
         val_dataset = val_dataset.select(range(subset_size))
-        print("Training MobileBERT on a subset of FiNER-139 train/val sets with " + str(subset_size) + " samples each.")
+        print("Training " + model_name + " on a subset of FiNER-139 train/val sets with " + str(subset_size) + " samples each.")
     else:
-        print("Training MobileBERT on full FiNER-139 train/val sets with " + str(len(train_dataset)) + " train samples and " + str(len(val_dataset)) + " val samples.")
+        print("Training " + model_name + " on full FiNER-139 train/val sets with " + str(len(train_dataset)) + " train samples and " + str(len(val_dataset)) + " val samples.")
     
     full_checkpoint_path = os.getcwd() + "/" + checkpoint_path
-    assert os.path.isdir(full_checkpoint_path) is True  # Verify checkpoint dir exists
-    print("Training MobileBERT checkpoints will be stored in the " + checkpoint_path + " folder")
+    if os.path.isdir(full_checkpoint_path) is False:
+        os.mkdir(checkpoint_path)
+    assert os.path.isdir(checkpoint_path)
+    print("Training " + model_name + " checkpoints will be stored in the " + checkpoint_path + " folder")
 
     assert 0 < learning_rate < 1
     assert 1 <= train_batch_size_per_device <= len(train_dataset)
@@ -60,31 +69,55 @@ if __name__ == "__main__":
     assert 1 <= epochs <= 10  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.4.2.
     assert 0 < weight_decay < 1
 
+    if use_peft is True:
+        # NOTE: No PEFT for SEC-BERT models for now. Revisit- may need to train with PEFT to train SEC-BERT family
+        assert model_name == "MobileBERT"
+
     # Getting array of tags/labels
     finer_tag_names = train_dataset.features["ner_tags"].feature.names
-
-    # Load MobileBERT tokenizer.
-    tokenizer = return_mobilebert_tokenizer()
-
-    # https://stackoverflow.com/questions/64320883/the-size-of-tensor-a-707-must-match-the-size-of-tensor-b-512-at-non-singleto
-
-    # Tokenize each section of the dataset.
-    tokenized_train = train_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
-    tokenized_val = val_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
-
-    # For creating batches of examples
-    data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
 
     # id2label and label2id dictionaries for loading the model.
     id2label = {i: element for i, element in enumerate(finer_tag_names)}
     label2id = {value: i for i, value in enumerate(finer_tag_names)}
 
-    # Uses the function in rq3_utils to get the pretrained MobileBERT model.
-    model = return_mobilebert_model(id2label, label2id)
+    # Load the tokenizer and model object, then tokenize the train and val sets
+    if model_name == "MobileBERT":
+        model = return_mobilebert_model(id2label, label2id)
+        tokenizer = return_mobilebert_tokenizer()
+        tokenized_train = train_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
+        tokenized_val = val_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
+    elif model_name == "SEC-BERT-BASE":
+        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base", num_labels=279, id2label=id2label, label2id=label2id)
+        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-base")
+        # TODO: Tokenize train and val data for SEC-BERT-BASE
+    elif model_name == "SEC-BERT-NUM":
+        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-num", num_labels=279, id2label=id2label, label2id=label2id)
+        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-num")
+        tokenized_train = train_dataset.map(sec_bert_num_preprocess, batched=True) # Apply SEC-BERT-NUM preprocessing
+        tokenized_val = val_dataset.map(sec_bert_num_preprocess, batched=True)
+    elif model_name == "SEC-BERT-SHAPE":
+        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-shape", num_labels=279, id2label=id2label, label2id=label2id)
+        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
+        tokenized_train = train_dataset.map(sec_bert_shape_preprocess, batched=True) # Apply SEC-BERT-SHAPE preprocessing
+        tokenized_val = val_dataset.map(sec_bert_shape_preprocess, batched=True)
 
-    print("MobileBERT Parameter Count: ", model.num_parameters())
-    # TODO: Include support to use SEC-BERT variants for training? Want to compare the efficiency and performance of both. 
-    # Maybe distillbert also: https://huggingface.co/dslim/distilbert-NER#:~:text=distilbert%2DNER%20is%20the%20fine,Named%20Entity%20Recognition%20(NER).
+    # NOTE: SEC-BERT family of models is assumed to have a linear classification layer after. 
+    # Check FiNER-139 paper for and GitHub for true architecture.
+    # TODO: Check if compute_metrics will still be valid without the tokenize and align. May need to create another one for SEC-BERT family?
+
+    # For creating batches of examples
+    data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
+
+    print(model_name, "Total Parameter Count: ", model.num_parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(model_name, "Trainable Parameter Count: ", str(trainable_params))
+
+    # PEFT
+    if use_peft is True:
+        peft_config = return_mobilebert_peft_config(inference_mode=False)
+        model = get_peft_model(model, peft_config)
+        print(model_name + " post-lora parameter overview: " + model.print_trainable_parameters())
+
 
     # Training arguments
     training_args = TrainingArguments(

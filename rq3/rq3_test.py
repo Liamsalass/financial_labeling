@@ -2,9 +2,9 @@ import datasets
 import argparse
 import os
 import torch
-from evaluate import evaluator
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification, TrainingArguments, Trainer
-from rq3_utils import tokenize_and_align_labels_mobilebert, sec_bert_num_preprocess, sec_bert_shape_preprocess, compute_metrics
+from peft import PeftModelForTokenClassification
+from rq3_utils import tokenize_and_align_labels_mobilebert, sec_bert_num_preprocess, sec_bert_shape_preprocess, compute_metrics, return_mobilebert_peft_config
 
 if __name__ == "__main__":
     print("CUDA available: ", torch.cuda.is_available())
@@ -24,6 +24,7 @@ if __name__ == "__main__":
     parser.add_argument('-checkpoint_path', type=str, default="rq3_model/checkpoint-32", help='Specify the relative path to the Hugging Face model checkpoint to evaluate.')
     parser.add_argument('-save_results', type=bool, default=True, help='Specify whether or not to save the test metrics to a file.')
     parser.add_argument('-batch_size', type=int, default=16, help='Batch size per device')
+    parser.add_argument('-peft', type=bool, default=True, help='Specify whether or not the model from the checkpoint was using PEFT.')
     arguments = parser.parse_args()
     
     model_name = arguments.model_name
@@ -31,6 +32,7 @@ if __name__ == "__main__":
     checkpoint_path = arguments.checkpoint_path
     save_results = arguments.save_results
     batch_size_per_device = arguments.batch_size
+    using_peft = arguments.peft
 
     # Verifying command line args
     assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
@@ -51,23 +53,31 @@ if __name__ == "__main__":
 
     assert 1 <= batch_size_per_device <= len(test_dataset)
 
+    if using_peft is True:
+        # NOTE: No PEFT for SEC-BERT models for now. Revisit- may need to train with PEFT to train SEC-BERT family
+        assert model_name == "MobileBERT"
+
     if model_name == "MobileBERT":
         model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
+        if using_peft is True:
+            # NOTE: ERROR WITH SIZE MISMATCH WHEN USING PEFT MODELS
+            # peft_config = return_mobilebert_peft_config(inference_mode=True)
+            model = PeftModelForTokenClassification.from_pretrained(checkpoint_path)
+
         tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
-        tokenized_test = test_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)  # Apply SEC-BERT-NUM preprocessing
-        
+        tokenized_test = test_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
     elif model_name == "SEC-BERT-BASE":
         # NOTE: SEC-BERT Classifier weights and biases are not loaded. The HF pretrained model is meant for fill-masking. See if we can load these weights from somewhere?
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base")
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-base")
     elif model_name == "SEC-BERT-NUM":
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-num")
-        tokenized_test = test_dataset.map(sec_bert_num_preprocess, batched=True)  # Apply SEC-BERT-NUM preprocessing
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-num")
+        tokenized_test = test_dataset.map(sec_bert_num_preprocess, batched=True)  # Apply SEC-BERT-NUM preprocessing
     elif model_name == "SEC-BERT-SHAPE":
         model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-shape")
-        tokenized_test = test_dataset.map(sec_bert_shape_preprocess, batched=True)  # Apply SEC-BERT-SHAPE preprocessing
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
+        tokenized_test = test_dataset.map(sec_bert_shape_preprocess, batched=True)  # Apply SEC-BERT-SHAPE preprocessing
     
     print(model_name + " Parameter Count: ", model.num_parameters())
 

@@ -5,6 +5,7 @@ import re
 import spacy
 import os
 import requests
+from peft import LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 
 def tokenize_and_align_labels_mobilebert(examples):
@@ -181,6 +182,16 @@ def return_mobilebert_model(id2label, label2id):
     
     return model
 
+def return_mobilebert_peft_config(inference_mode):
+    assert inference_mode in [True, False]
+    # https://github.com/huggingface/peft/blob/main/examples/token_classification/peft_lora_token_cls.ipynb
+    lora_modules = ["mobilebert.embeddings.word_embeddings", "mobilebert.embeddings.position_embeddings", "mobilebert.embeddings.token_type_embeddings", "mobilebert.embeddings.embedding_transformation"]
+    # TODO: Verify that correct modules are being selected for lora.
+    peft_config = LoraConfig(
+        task_type=TaskType.TOKEN_CLS, inference_mode=inference_mode, r=16, lora_alpha=16, lora_dropout=0.1, bias="all", target_modules=lora_modules
+    )
+    # TODO: Investigate Lora parameters, used ones from tutorial example.
+    return peft_config
 
 def check_mobilebert_folder(verbose=False):
     """
