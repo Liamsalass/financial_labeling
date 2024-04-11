@@ -3,7 +3,7 @@ import argparse
 import os
 import torch
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification, TrainingArguments, Trainer
-from peft import PeftModelForTokenClassification
+from peft import PeftModel, PeftConfig
 from rq3_utils import tokenize_and_align_labels_mobilebert, sec_bert_num_preprocess, sec_bert_shape_preprocess, compute_metrics, return_mobilebert_peft_config
 
 if __name__ == "__main__":
@@ -58,13 +58,24 @@ if __name__ == "__main__":
         assert model_name == "MobileBERT"
 
     if model_name == "MobileBERT":
-        model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
         if using_peft is True:
-            # NOTE: ERROR WITH SIZE MISMATCH WHEN USING PEFT MODELS
-            # peft_config = return_mobilebert_peft_config(inference_mode=True)
-            model = PeftModelForTokenClassification.from_pretrained(checkpoint_path)
+            # Getting array of tags/labels
+            finer_tag_names = test_dataset.features["ner_tags"].feature.names
 
-        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+            # id2label and label2id dictionaries for loading the model.
+            id2label = {i: element for i, element in enumerate(finer_tag_names)}
+            label2id = {value: i for i, value in enumerate(finer_tag_names)}
+            # TODO: Verify if these dicts are the same when finer_tag_names uses train, rather than test?
+
+            config = PeftConfig.from_pretrained(checkpoint_path)
+            inference_model = AutoModelForTokenClassification.from_pretrained(
+            config.base_model_name_or_path, num_labels=279, id2label=id2label, label2id=label2id)
+            tokenizer = AutoTokenizer.from_pretrained(config.base_model_name_or_path)
+            model = PeftModel.from_pretrained(inference_model, checkpoint_path)
+        else:
+            model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
+            tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+        
         tokenized_test = test_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
     elif model_name == "SEC-BERT-BASE":
         # NOTE: SEC-BERT Classifier weights and biases are not loaded. The HF pretrained model is meant for fill-masking. See if we can load these weights from somewhere?
@@ -80,7 +91,6 @@ if __name__ == "__main__":
         tokenized_test = test_dataset.map(sec_bert_shape_preprocess, batched=True)  # Apply SEC-BERT-SHAPE preprocessing
     
     print(model_name + " Parameter Count: ", model.num_parameters())
-
 
     training_args = TrainingArguments(
         output_dir=checkpoint_path,
