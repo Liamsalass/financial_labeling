@@ -25,14 +25,14 @@ if __name__ == "__main__":
     # TODO: Tune hyperparameters, defaults here are left from the Hugging Face tutorial
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Training code')
     parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
-    parser.add_argument('-subset', type=int, default=64, help='Specify to use a subset of the train and val set. If left empty, use the entire train and val sets.')
+    parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the train and val set. If left empty, use the entire train and val sets.')
     parser.add_argument('-output_checkpoint_path', type=str, default="rq3_mobilebert_model", help='Specify the relative path to the checkpoint folder.')
     parser.add_argument('-lr', type=float, default=2e-5, help='Learning rate')
     parser.add_argument('-train_batch_size', type=int, default=16, help='Train batch size per device')
     parser.add_argument('-val_batch_size', type=int, default=16, help='Val batch size per device')
     parser.add_argument('-epochs', type=int, default=2)
     parser.add_argument('-weight_decay', type=float, default=0.01)
-    parser.add_argument('-peft', type=bool, default=True, help='Specify whether or not to use PEFT during training.')
+    parser.add_argument('-peft', type=int, default=1, help='Specify whether or not to use PEFT during training [0/1].')
     arguments = parser.parse_args()
     
     model_name = arguments.model_name
@@ -68,8 +68,9 @@ if __name__ == "__main__":
     assert 1 <= val_batch_size_per_device <= len(val_dataset)
     assert 1 <= epochs <= 10  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.4.2.
     assert 0 < weight_decay < 1
+    assert use_peft in [0, 1]
 
-    if use_peft is True:
+    if use_peft == 1:
         # NOTE: No PEFT for SEC-BERT models for now. Revisit- may need to train with PEFT to train SEC-BERT family
         assert model_name == "MobileBERT"
 
@@ -115,6 +116,10 @@ if __name__ == "__main__":
         print(model_name + " post-lora parameter overview: ")
         model.print_trainable_parameters()
     else:
+        # Only train the output/classification layer, freeze all other gradients
+        for name, param in model.named_parameters():
+            if "classifier" not in name:
+                param.requires_grad = False
         print(model_name, "Total Parameter Count: ", model.num_parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(model_name, "Trainable Parameter Count: ", str(trainable_params))

@@ -24,7 +24,7 @@ if __name__ == "__main__":
     parser.add_argument('-checkpoint_path', type=str, default="rq3_model/checkpoint-32", help='Specify the relative path to the Hugging Face model checkpoint to evaluate.')
     parser.add_argument('-save_results', type=bool, default=True, help='Specify whether or not to save the test metrics to a file.')
     parser.add_argument('-batch_size', type=int, default=16, help='Batch size per device')
-    parser.add_argument('-peft', type=bool, default=True, help='Specify whether or not the model from the checkpoint was using PEFT.')
+    parser.aparser.add_argument('-peft', type=int, default=1, help='Specify whether or not the checkpoint model used PEFT during training [0/1].')
     arguments = parser.parse_args()
     
     model_name = arguments.model_name
@@ -53,7 +53,9 @@ if __name__ == "__main__":
 
     assert 1 <= batch_size_per_device <= len(test_dataset)
 
-    if using_peft is True:
+    assert using_peft in [0, 1]
+
+    if using_peft == 1:
         # NOTE: No PEFT for SEC-BERT models for now. Revisit- may need to train with PEFT to train SEC-BERT family
         assert model_name == "MobileBERT"
 
