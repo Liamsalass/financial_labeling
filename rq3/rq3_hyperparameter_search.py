@@ -1,17 +1,16 @@
+import datasets
 import argparse
 import os
-import datasets
+import numpy as np
 import torch
 import torch_optimizer
 import wandb
 from peft import get_peft_model
 from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, sec_bert_num_preprocess, sec_bert_shape_preprocess, return_mobilebert_peft_config
 from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer
-
+    
 
 if __name__ == "__main__":
-    wandb.init(mode="disabled")  # Disable wandb for this file.
-
     print("CUDA available: ", torch.cuda.is_available())
     if torch.cuda.is_available():
         print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
@@ -19,32 +18,24 @@ if __name__ == "__main__":
         print("CUDA unavailable, using CPU")
     
     # Load the train and val dataset splits.
-    # TODO: Add progress bar/update for dataset loading?
     train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
     print("Train dataset loaded")
     val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
     print("Val dataset loaded")
 
+    # TODO: n_sweeps command line arg?
     # Parsing command line args
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Training code')
     parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
     parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the train and val set. If left empty, use the entire train and val sets.')
-    parser.add_argument('-output_checkpoint_path', type=str, default="rq3_mobilebert_model", help='Specify the relative path to the checkpoint folder.')
-    parser.add_argument('-lr', type=float, default=2e-5, help='Learning rate')
-    parser.add_argument('-train_batch_size', type=int, default=16, help='Train batch size per device')
-    parser.add_argument('-val_batch_size', type=int, default=16, help='Val batch size per device')
-    parser.add_argument('-epochs', type=int, default=2)
+    parser.add_argument('-wandb_project_path', type=str, default="rq3_mobilebert_sweep", help='Specify the relative path to the wandb project folder.')
     parser.add_argument('-peft', type=int, default=1, help='Specify whether or not to use PEFT during training [0/1].')
     arguments = parser.parse_args()
     
     # Command line args into variables
     model_name = arguments.model_name
     subset_size = arguments.subset
-    checkpoint_path = arguments.output_checkpoint_path
-    learning_rate = arguments.lr
-    train_batch_size_per_device = arguments.train_batch_size
-    val_batch_size_per_device = arguments.val_batch_size
-    epochs = arguments.epochs
+    wandb_path = arguments.wandb_project_path
     use_peft = arguments.peft
 
     # Verifying command line args
@@ -59,19 +50,13 @@ if __name__ == "__main__":
     else:
         print("Training " + model_name + " on full FiNER-139 train/val sets with " + str(len(train_dataset)) + " train samples and " + str(len(val_dataset)) + " val samples.")
     
-    full_checkpoint_path = os.getcwd() + "/" + checkpoint_path
-    if os.path.isdir(full_checkpoint_path) is False:
-        os.mkdir(checkpoint_path)
-    assert os.path.isdir(checkpoint_path)
-    print("Training " + model_name + " checkpoints will be stored in the " + checkpoint_path + " folder")
+    full_wandb_path = os.getcwd() + "/" + wandb_path
+    if os.path.isdir(full_wandb_path) is False:
+        os.mkdir(wandb_path)
+    assert os.path.isdir(wandb_path)
+    print("wandb sweep for " + model_name + " will be stored in the " + wandb_path + " project folder")
 
-    assert 0 < learning_rate < 1
-    assert 1 <= train_batch_size_per_device <= len(train_dataset)
-    assert 1 <= val_batch_size_per_device <= len(val_dataset)
-    assert 1 <= epochs <= 10  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.4.2.
     assert use_peft in [0, 1]
-
-    # TODO: Implement assertions on hyperparameters that are model-specific.
 
     if use_peft == 1:
         # NOTE: No PEFT for SEC-BERT models for now. Revisit- may need to train with PEFT to train SEC-BERT family
@@ -105,12 +90,6 @@ if __name__ == "__main__":
         tokenized_train = train_dataset.map(sec_bert_shape_preprocess, batched=True) # Apply SEC-BERT-SHAPE preprocessing
         tokenized_val = val_dataset.map(sec_bert_shape_preprocess, batched=True)
 
-    # NOTE: SEC-BERT family of models is assumed to have a linear classification layer after BERT. Unsure if there should be something else.
-        # Check FiNER-139 paper for and GitHub for true architecture.
-    
-    # TODO: Check if compute_metrics will still be valid without the tokenize and align labels function.
-        #  May need to create another one for SEC-BERT family?
-
     # For creating batches of examples
     data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
 
@@ -130,35 +109,74 @@ if __name__ == "__main__":
 
     # Optimizer for each model.
     if model_name == "MobileBERT":
-        optimizer = torch_optimizer.Lamb(model.parameters(), lr=learning_rate)
+        optimizer = torch_optimizer.Lamb(model.parameters())
     else:  # SEC-BERT family
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        optimizer = torch.optim.Adam(model.parameters())
 
-    # Training arguments
-    training_args = TrainingArguments(
-        output_dir=checkpoint_path,
-        per_device_train_batch_size=train_batch_size_per_device,
-        per_device_eval_batch_size=val_batch_size_per_device,
-        num_train_epochs=epochs,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
-        load_best_model_at_end=True,
-        use_cpu=False
-    )
+    print("\n\n-----PERFORMING HYPERPARAMETER SEARCH-----")
 
-    # NOTE: https://huggingface.co/learn/nlp-course/en/chapter7/2 , custom training loop?
+    if model_name == "MobileBERT":
+        # Values taken from MobileBERT paper fine-tuning section: https://arxiv.org/pdf/2004.02984.pdf
+        wandb_config = {
+            "method": "grid",  # TODO: Consider random method, grid may be very costly
+            "parameters": {
+                "epochs": {"values": (np.arange(start=2, stop=11, step=1)).tolist()}, # 2-10 inclusive
+                "learning_rate": {"values": (np.arange(start=1e-5, stop=11e-5, step=1e-5).tolist())},  # 1e-5 to 10e-5 inclusive
+                "per_device_train_batch_size": {"values": [16, 32, 48]}
+            },
+        }
+    else:  # SEC-BERT family
+        # Values taken from BERT paper fine-tuning section: https://arxiv.org/pdf/1810.04805.pdf
+        wandb_config = {
+            "method": "grid", # TODO: Consider random method, grid may be very costly
+            "parameters": {
+                "learning_rate": {"values": [5e-5, 3e-5, 2e-5]},
+                "per_device_train_batch_size": {"values": [16, 32]},
+                "epochs": {"values": [2, 3, 4]}
+            },
+        }
 
-    # Model Trainer object
-    trainer = Trainer(
-        model=model,
-        optimizers=[optimizer, None],  # TODO: How to account for automatic lr scheduler?
-        args=training_args,
-        train_dataset=tokenized_train,
-        eval_dataset=tokenized_val,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-        compute_metrics=compute_metrics
-    )
+    # Weights and biases login + setup
+    # TODO: Set up configuration with wandb login- 
+    wandb.login()
+    # Create 2 environment variables
+    os.environ["WANDB_PROJECT"] = wandb_path
+    os.environ["WANDB_LOG_MODEL"] = "true"
+
+    sweep_id = wandb.sweep(wandb_config, project=wandb_path)
+
+    def train(config=None):
+        # code staring point: https://wandb.ai/matt24/vit-snacks-sweeps/reports/Hyperparameter-Search-for-HuggingFace-Transformer-Models--VmlldzoyMTUxNTg0
+        with wandb.init(config=config):
+            # set sweep configuration
+            config = wandb.config
+
+            # set training arguments
+            training_args = TrainingArguments(
+                output_dir=wandb_path,
+                report_to='wandb',  # Turn on Weights & Biases logging
+                num_train_epochs=config.epochs,
+                learning_rate=config.learning_rate,
+                per_device_train_batch_size=config.per_device_train_batch_size,
+                per_device_eval_batch_size=16,
+                save_strategy='epoch',
+                evaluation_strategy='epoch',
+                logging_strategy='epoch',
+                load_best_model_at_end=True,
+            )
+
+            # define training loop
+            trainer = Trainer(
+                model=model,
+                args=training_args,
+                optimizers=(optimizer, None),  # TODO: scheduler? Currently have no scheduler. Look into papers to see what this should be.
+                data_collator=data_collator,
+                train_dataset=tokenized_train,
+                eval_dataset=tokenized_val,
+                compute_metrics=compute_metrics  # TODO: Compute metrics for SEC-BERT family?
+            )
+
+            # start training loop
+            trainer.train()
     
-    print("\n\n-----TRAINING-----")
-    trainer.train()
+    wandb.agent(sweep_id, train)
