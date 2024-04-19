@@ -1,0 +1,17 @@
+name: FINER-139
+train:
+  texts: processed_train/texts.npy
+  labels: processed_train/tags.npy
+
+valid:
+  size: 100  
+
+labels_binarizer: data/mlb.npy
+
+embedding:
+  emb_init: data/embeddings.npy
+
+test:
+  texts: processed_train/texts.npy
+output:
+  res: results
