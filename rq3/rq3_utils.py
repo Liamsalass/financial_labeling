@@ -50,7 +50,6 @@ def sec_bert_num_preprocess(examples):
     """
     From https://huggingface.co/nlpaueb/sec-bert-num
     """
-    # TODO: Can we make this parallelizable somehow? Seems slow. Same for SEC-BERT-SHAPE
     spacy_tokenizer = spacy.load("en_core_web_sm")
 
     for idx, sentence in enumerate(examples["tokens"]):
@@ -180,7 +179,12 @@ def return_mobilebert_model(id2label, label2id):
     
     return model
 
+
 def return_mobilebert_peft_config(inference_mode):
+    """
+    Returns the PEFT configuration for the MobileBERT model.
+    inference_mode determines whether or not the model is being loaded for training(False) or inference(True).
+    """
     assert inference_mode in [True, False]
     # https://github.com/huggingface/peft/blob/main/examples/token_classification/peft_lora_token_cls.ipynb
     lora_modules = ["mobilebert.embeddings.word_embeddings", "mobilebert.embeddings.position_embeddings", "mobilebert.embeddings.token_type_embeddings", "mobilebert.embeddings.embedding_transformation"]
@@ -190,6 +194,7 @@ def return_mobilebert_peft_config(inference_mode):
     )
     # TODO: Investigate Lora parameters, used ones from tutorial example.
     return peft_config
+
 
 def check_mobilebert_folder(verbose=False):
     """
@@ -232,7 +237,12 @@ def download_mobilebert_files(file_names):
     os.chdir('mobilebert-uncased')
     for file_name in file_names:
                 # Downloading each file to the mobilebert-uncased folder
-                response = requests.get("https://huggingface.co/google/mobilebert-uncased/resolve/main/" + file_name + "?download=true")
+                try:
+                    response = requests.get("https://huggingface.co/google/mobilebert-uncased/resolve/main/" + file_name + "?download=true", timeout=30)
+                except requests.exceptions.Timeout:
+                    print("Timed out when installing " + file_name + ". Exiting")
+                    exit()
+                
                 open(file_name, "wb").write(response.content)
     
     os.chdir('..')  # Move back one level to return to rq3 as the working directory
