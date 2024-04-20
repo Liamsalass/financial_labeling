@@ -4,10 +4,26 @@ import datasets
 import torch
 import torch_optimizer
 import wandb
-import pandas as pd
+from copy import deepcopy
 from peft import get_peft_model
 from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, sec_bert_num_preprocess, sec_bert_shape_preprocess, return_mobilebert_peft_config
-from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer
+from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer, TrainerCallback
+
+
+class CustomCallback(TrainerCallback):
+    """
+    This custom callback ensures that training metrics are included in the Hugging Face trainer_state.json logs.
+    From: https://discuss.huggingface.co/t/metrics-for-training-set-in-trainer/2461/7
+    """
+    def __init__(self, trainer) -> None:
+        super().__init__()
+        self._trainer = trainer
+    
+    def on_epoch_end(self, args, state, control, **kwargs):
+        if control.should_evaluate:
+            control_copy = deepcopy(control)
+            self._trainer.evaluate(eval_dataset=self._trainer.train_dataset, metric_key_prefix="train")
+            return control_copy
 
 
 if __name__ == "__main__":
@@ -118,7 +134,7 @@ if __name__ == "__main__":
     data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
 
     # PEFT
-    if use_peft is True:
+    if use_peft == 1:
         peft_config = return_mobilebert_peft_config(inference_mode=False)
         model = get_peft_model(model, peft_config)
         print(model_name + " post-lora parameter overview: ")
@@ -163,5 +179,11 @@ if __name__ == "__main__":
         compute_metrics=compute_metrics
     )
     
+    # Add callback to track training metrics
+    trainer.add_callback(CustomCallback(trainer)) 
+
     print("\n\n-----TRAINING-----")
     trainer.train()
+
+    train_logs = trainer.state.log_history
+    print(train_logs)

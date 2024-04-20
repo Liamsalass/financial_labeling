@@ -1,6 +1,7 @@
 import os
 import argparse
 import json
+import numpy as np
 import matplotlib.pyplot as plt
 
 
@@ -8,12 +9,12 @@ if __name__ == "__main__":
     # Command Line Arguments
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Plotting code')
     parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
-    parser.add_argument('-output_checkpoint_path', type=str, default="rq3_mobilebert_model", help='Specify the relative path to the checkpoint folder.')
+    parser.add_argument('-model_checkpoint_path', type=str, default="rq3_mobilebert_model", help='Specify the relative path to the checkpoint folder.')
     arguments = parser.parse_args()
 
     # Parse Arguments
     model_name = arguments.model_name
-    checkpoint_path = arguments.output_checkpoint_path
+    checkpoint_path = arguments.model_checkpoint_path
 
     # Verify Arguments
     assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
@@ -36,10 +37,10 @@ if __name__ == "__main__":
         trainer_state_data = json.load(json_file)
     
     # Extracting data from JSON
-    epochs = [entry['epoch'] for entry in trainer_state_data['log_history']]
-    # NOTE: Code fails here since hugging face doesn't track train loss in trainer_state.json. Look into how to get this value
-    train_loss = [entry['train_loss'] for entry in trainer_state_data['log_history']]
-    val_loss = [entry['eval_loss'] for entry in trainer_state_data['log_history']]
+    num_epochs = (len(trainer_state_data['log_history']) // 2) + 1  # trainer_state reports twice per epoch
+    epochs = list(range(1, num_epochs))
+    train_loss = [entry['train_loss'] for entry in trainer_state_data['log_history'] if 'train_loss' in entry]
+    val_loss = [entry['eval_loss'] for entry in trainer_state_data['log_history'] if 'eval_loss' in entry]
 
     # Plotting
     plt.figure(figsize=(10, 6))
