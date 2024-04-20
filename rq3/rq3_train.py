@@ -4,6 +4,7 @@ import datasets
 import torch
 import torch_optimizer
 import wandb
+import pandas as pd
 from peft import get_peft_model
 from rq3_utils import tokenize_and_align_labels_mobilebert, compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, sec_bert_num_preprocess, sec_bert_shape_preprocess, return_mobilebert_peft_config
 from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer
@@ -27,7 +28,7 @@ if __name__ == "__main__":
 
     # Parsing command line args
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Training code')
-    parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
+    parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to train. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
     parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the train and val set. If left empty, use the entire train and val sets.')
     parser.add_argument('-output_checkpoint_path', type=str, default="rq3_mobilebert_model", help='Specify the relative path to the checkpoint folder.')
     parser.add_argument('-lr', type=float, default=2e-5, help='Learning rate')
@@ -36,7 +37,9 @@ if __name__ == "__main__":
     parser.add_argument('-epochs', type=int, default=2)
     parser.add_argument('-peft', type=int, default=1, help='Specify whether or not to use PEFT during training [0/1].')
     arguments = parser.parse_args()
-    
+
+    # TODO: Save command line args into file?
+
     # Command line args into variables
     model_name = arguments.model_name
     subset_size = arguments.subset
