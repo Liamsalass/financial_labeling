@@ -137,7 +137,7 @@ if __name__ == "__main__":
     if use_peft == 1:
         peft_config = return_mobilebert_peft_config(inference_mode=False)
         model = get_peft_model(model, peft_config)
-        print(model_name + " post-lora parameter overview: ")
+        print(model_name + " PEFT parameter overview: ")
         model.print_trainable_parameters()
     else:  # Only train the output/classification layer, freeze all other gradients
         for name, param in model.named_parameters():
@@ -145,7 +145,7 @@ if __name__ == "__main__":
                 param.requires_grad = False
         print(model_name, "Total Parameter Count: ", model.num_parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(model_name, "Trainable Parameter Count: ", str(trainable_params))  # TODO: Replace line
+        print(model_name, "Trainable Parameter Count: ", str(trainable_params))
 
     # Optimizer for each model.
     if model_name == "MobileBERT":
@@ -184,6 +184,3 @@ if __name__ == "__main__":
 
     print("\n\n-----TRAINING-----")
     trainer.train()
-
-    train_logs = trainer.state.log_history
-    print(train_logs)
