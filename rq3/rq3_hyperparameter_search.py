@@ -6,9 +6,8 @@ import torch
 import torch_optimizer
 import wandb
 from peft import get_peft_model
-from utils.metrics import compute_metrics
-from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
-from utils.rq3_utils import return_mobilebert_tokenizer, return_mobilebert_model, return_peft_config
+from rq3_utils import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
+from rq3_utils import return_mobilebert_tokenizer, return_mobilebert_model, return_peft_config, compute_metrics
 from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer
     
 
