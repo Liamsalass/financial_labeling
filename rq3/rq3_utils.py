@@ -317,7 +317,7 @@ def return_peft_config(inference_mode):
         r=8,
         lora_alpha=32,
         lora_dropout=0.05,
-        bias="none",  # TODO: Tweak bias in future? 
+        bias="all",  # TODO: Tweak bias in future? lora-only?
         # target_modules=["query", "value"]  #basic lora
         target_modules="all-linear"  # qlora
     )

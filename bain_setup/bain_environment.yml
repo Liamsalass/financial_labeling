@@ -175,6 +175,7 @@ dependencies:
       - joblib==1.4.0
       - langcodes==3.3.0
       - murmurhash==1.0.10
+      - matplotlib==3.8.4
       - peft==0.10.0
       - preshed==3.0.9
       - psutil==5.9.8
