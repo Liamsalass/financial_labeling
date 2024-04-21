@@ -36,8 +36,8 @@ test_file = '/home/19jac16/.cache/huggingface/datasets/nlpaueb___finer-139/finer
 # Convert and save train data, append to ensure all training data is in one file
 first = True
 for file in train_files:
-    arrow_to_text(file, 'AttentionXML/data/Finer-139/train_raw_texts.txt', 'AttentionXML/data/Finer-139/train_labels.txt', append=not first)
+    arrow_to_text(file, 'rq2/data/Finer-139/train_raw_texts.txt', 'rq2/data/Finer-139/train_labels.txt', append=not first)
     first = False
 
 # Convert and save test data
-arrow_to_text(test_file, 'AttentionXML/data/Finer-139/test_raw_texts.txt', 'AttentionXML/data/Finer-139/test_labels.txt')
+arrow_to_text(test_file, 'rq2/data/Finer-139/test_raw_texts.txt', 'rq2/data/Finer-139/test_labels.txt')
