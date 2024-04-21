@@ -6,7 +6,7 @@ import wandb
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification, TrainingArguments, Trainer
 from peft import PeftModel, PeftConfig
 from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
-from utils.rq3_utils import compute_metrics
+from utils.metrics import compute_metrics
 
 if __name__ == "__main__":
     wandb.init(mode="disabled")  # Disable wandb for this file.
@@ -17,9 +17,7 @@ if __name__ == "__main__":
     else:
         print("CUDA unavailable, using CPU")
 
-    # Loading the test dataset. NOTE: In future, can possibly specify path to this dataset with command line args. Not needed right now.
     test_dataset = datasets.load_dataset("nlpaueb/finer-139", split="test")
-    # TODO: Do we need to map the dataset like we did in rq3_train with tokenize and align labels?
 
     # Parsing command line args
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Testing code')
@@ -105,7 +103,7 @@ if __name__ == "__main__":
 
     test_results = trainer.evaluate(eval_dataset=tokenized_test)
 
-    # TODO: Latency metric, possibly add batch size in reporting?
+    # TODO: Latency metric?, possibly add batch size in reporting?
     # Print to console
     print(model_name + " model from checkpoint: " + checkpoint_path + "\nResults: \nmicro/overall precision: ",
             test_results["eval_micro/overall precision"], "\nmicro/overall recall: ", test_results["eval_micro/overall recall"],

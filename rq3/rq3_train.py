@@ -6,7 +6,8 @@ import torch_optimizer
 import wandb
 from copy import deepcopy
 from peft import get_peft_model
-from utils.rq3_utils import compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, return_peft_config
+from utils.metrics import compute_metrics
+from utils.rq3_utils import return_mobilebert_tokenizer, return_mobilebert_model, return_peft_config
 from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
 from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer, TrainerCallback
 
@@ -37,8 +38,9 @@ if __name__ == "__main__":
         print("CUDA unavailable, using CPU")
     
     # Load the train and val dataset splits.
+    print("Loading train dataset.")
     train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
-    print("Train dataset loaded")
+    print("Train dataset loaded. Loading val dataset.")
     val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
     print("Val dataset loaded")
 
@@ -53,6 +55,8 @@ if __name__ == "__main__":
     parser.add_argument('-epochs', type=int, default=2)
     parser.add_argument('-peft', type=int, default=1, help='Specify whether or not to use PEFT during training [0/1].')
     arguments = parser.parse_args()
+
+    # TODO: Command line arg to load a model from a checkpoint and continue training
 
     # Command line args into variables
     model_name = arguments.model_name
@@ -155,8 +159,6 @@ if __name__ == "__main__":
         use_cpu=False
     )
 
-    # NOTE: https://huggingface.co/learn/nlp-course/en/chapter7/2 , custom training loop?
-
     # Model Trainer object
     trainer = Trainer(
         model=model,
@@ -169,6 +171,8 @@ if __name__ == "__main__":
         compute_metrics=compute_metrics
     )
     
+    # TODO: Is it the callback? or location of compute metrics?
+
     # Add callback to track training metrics
     trainer.add_callback(CustomCallback(trainer))
 
