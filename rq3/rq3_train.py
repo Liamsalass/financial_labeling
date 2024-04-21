@@ -128,23 +128,12 @@ if __name__ == "__main__":
         else:
             model = AutoModelForTokenClassification.from_pretrained(resume_from_checkpoint_path)
             tokenizer = AutoTokenizer.from_pretrained(resume_from_checkpoint_path)
-    else:  # Load model from Hugging Face
-        if model_name == "MobileBERT": # Load MobileBERT
-            from rq3_utils import return_mobilebert_model, return_mobilebert_tokenizer, tokenize_and_align_labels_mobilebert
-            model = return_mobilebert_model(id2label, label2id, bnb_config)
-            tokenizer = return_mobilebert_tokenizer()
-        else:  # Load model from SEC-BERT family
-            if model_name == "SEC-BERT-BASE":
-                sec_bert_url = "nlpaueb/sec-bert-base"
-            elif model_name == "SEC-BERT-NUM":
-                sec_bert_url = "nlpaueb/sec-bert-num"
-            elif model_name == "SEC-BERT-SHAPE":
-                sec_bert_url = "nlpaueb/sec-bert-shape"
-            model = AutoModelForTokenClassification.from_pretrained(sec_bert_url, num_labels=279, id2label=id2label, label2id=label2id, quantization_config=bnb_config)
-            tokenizer = AutoTokenizer.from_pretrained(sec_bert_url)
+    else:  # Load model from RQ3 utils functions
+        from rq3_utils import return_model_object, return_model_tokenizer, tokenize_and_align_labels_mobilebert
+        model = return_model_object(model_name, id2label, label2id, bnb_config)
+        tokenizer = return_model_tokenizer(model_name)
     
-        # PEFT
-        if use_peft == 1:
+        if use_peft == 1: # PEFT config
             from rq3_utils import return_peft_config
             from peft import get_peft_model
             peft_config = return_peft_config(inference_mode=False)

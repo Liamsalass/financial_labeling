@@ -1,0 +1,24 @@
+  File "C:\Users\19lss3\Documents\financial_labeling\rq3\rq3_train.py", line 134, in <module>
+    tokenizer = return_model_tokenizer(model_name)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\19lss3\Documents\financial_labeling\rq3\rq3_utils.py", line 247, in return_model_tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(hf_url)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Anaconda3\envs\financial_labeling_bain\Lib\site-packages\transformers\models\auto\tokenization_auto.py", line 758, in from_pretrained
+    tokenizer_config = get_tokenizer_config(pretrained_model_name_or_path, **kwargs)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Anaconda3\envs\financial_labeling_bain\Lib\site-packages\transformers\models\auto\tokenization_auto.py", line 611, in get_tokenizer_config
+    result = json.load(reader)
+             ^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Anaconda3\envs\financial_labeling_bain\Lib\json\__init__.py", line 293, in load
+    return loads(fp.read(),
+           ^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Anaconda3\envs\financial_labeling_bain\Lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Anaconda3\envs\financial_labeling_bain\Lib\json\decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Anaconda3\envs\financial_labeling_bain\Lib\json\decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
