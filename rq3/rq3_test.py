@@ -6,7 +6,7 @@ import wandb
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification, TrainingArguments, Trainer
 from peft import PeftModel, PeftConfig
 from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
-from utils.rq3_utils import compute_metrics, return_mobilebert_peft_config
+from utils.rq3_utils import compute_metrics
 
 if __name__ == "__main__":
     wandb.init(mode="disabled")  # Disable wandb for this file.
@@ -58,42 +58,30 @@ if __name__ == "__main__":
     assert using_peft in [0, 1]
 
     if using_peft == 1:
-        # NOTE: No PEFT for SEC-BERT models for now. Revisit- may need to train with PEFT to train SEC-BERT family
-        assert model_name == "MobileBERT"
+        finer_tag_names = test_dataset.features["ner_tags"].feature.names
 
-    if model_name == "MobileBERT":
-        if using_peft is True:
-            # Getting array of tags/labels
-            finer_tag_names = test_dataset.features["ner_tags"].feature.names
+        # id2label and label2id dictionaries for loading the model.
+        id2label = {i: element for i, element in enumerate(finer_tag_names)}
+        label2id = {value: i for i, value in enumerate(finer_tag_names)}
 
-            # id2label and label2id dictionaries for loading the model.
-            id2label = {i: element for i, element in enumerate(finer_tag_names)}
-            label2id = {value: i for i, value in enumerate(finer_tag_names)}
-            # TODO: Verify if these dicts are the same when finer_tag_names uses train, rather than test?
-
-            config = PeftConfig.from_pretrained(checkpoint_path)
-            inference_model = AutoModelForTokenClassification.from_pretrained(
-            config.base_model_name_or_path, num_labels=279, id2label=id2label, label2id=label2id)
-            tokenizer = AutoTokenizer.from_pretrained(config.base_model_name_or_path)
-            model = PeftModel.from_pretrained(inference_model, checkpoint_path)
-        else:
-            model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
-            tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
-        
-        tokenized_test = test_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
-
-    elif model_name == "SEC-BERT-BASE":
+        config = PeftConfig.from_pretrained(checkpoint_path)
+        inference_model = AutoModelForTokenClassification.from_pretrained(
+        config.base_model_name_or_path, num_labels=279, id2label=id2label, label2id=label2id)
+        tokenizer = AutoTokenizer.from_pretrained(config.base_model_name_or_path)
+        model = PeftModel.from_pretrained(inference_model, checkpoint_path)
+    else:  # No PEFT
         model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
         tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+
+    # Tokenize data according to different model variants
+    if model_name == "MobileBERT":
+        tokenized_test = test_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
+    elif model_name == "SEC-BERT-BASE":
         tokenized_test = test_dataset.map(tokenize_and_align_labels_sec_bert_base, batched=True)
     elif model_name == "SEC-BERT-NUM":
-        model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
-        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
-        tokenized_test = test_dataset.map(tokenize_and_align_labels_sec_bert_num, batched=True) # Apply SEC-BERT-NUM preprocessing
+        tokenized_test = test_dataset.map(tokenize_and_align_labels_sec_bert_num, batched=True)
     elif model_name == "SEC-BERT-SHAPE":
-        model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
-        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
-        tokenized_test = test_dataset.map(tokenize_and_align_labels_sec_bert_shape, batched=True) # Apply SEC-BERT-SHAPE preprocessing
+        tokenized_test = test_dataset.map(tokenize_and_align_labels_sec_bert_shape, batched=True)
     
     print(model_name + " Parameter Count: ", model.num_parameters())
 

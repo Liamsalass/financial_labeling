@@ -6,7 +6,7 @@ import torch_optimizer
 import wandb
 from copy import deepcopy
 from peft import get_peft_model
-from utils.rq3_utils import compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, return_mobilebert_peft_config
+from utils.rq3_utils import compute_metrics, return_mobilebert_tokenizer, return_mobilebert_model, return_peft_config
 from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
 from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer, TrainerCallback
 
@@ -88,12 +88,6 @@ if __name__ == "__main__":
     assert 1 <= epochs <= 10  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.4.2.
     assert use_peft in [0, 1]
 
-    # TODO: Implement assertions on hyperparameters that are model-specific.
-
-    if use_peft == 1:
-        # NOTE: No PEFT for SEC-BERT models for now. Revisit- may need to train with PEFT to train SEC-BERT family
-        assert model_name == "MobileBERT"
-
     # Getting array of tags/labels
     finer_tag_names = train_dataset.features["ner_tags"].feature.names
 
@@ -125,17 +119,14 @@ if __name__ == "__main__":
 
     # NOTE: SEC-BERT family of models is assumed to have a linear classification layer after BERT. Unsure if there should be something else.
         # Check FiNER-139 paper for and GitHub for true architecture.
-    
-    # TODO: Check if compute_metrics will still be valid without the tokenize and align labels function.
-        #  May need to create another one for SEC-BERT family?
 
     # For creating batches of examples
     data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
 
     # PEFT
     if use_peft == 1:
-        peft_config = return_mobilebert_peft_config(inference_mode=False)
-        model = get_peft_model(model, peft_config)
+        peft_config = return_peft_config(inference_mode=False, model_name=model_name)
+        model = get_peft_model(model, peft_config) 
         print(model_name + " PEFT parameter overview: ")
         model.print_trainable_parameters()
     else:  # Only train the output/classification layer, freeze all other gradients
@@ -169,7 +160,7 @@ if __name__ == "__main__":
     # Model Trainer object
     trainer = Trainer(
         model=model,
-        optimizers=[optimizer, None], #TODO: How to account for automatic lr scheduler?
+        optimizers=[optimizer, None],
         args=training_args,
         train_dataset=tokenized_train,
         eval_dataset=tokenized_val,

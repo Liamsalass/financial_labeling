@@ -98,22 +98,29 @@ def return_mobilebert_model(id2label, label2id):
     
     return model
 
-
-def return_mobilebert_peft_config(inference_mode):
+def return_peft_config(inference_mode, model_name):
     """
-    Returns the PEFT configuration for the MobileBERT model.
+    Returns the PEFT configuration for the corresponding model architecture.
     inference_mode determines whether or not the model is being loaded for training(False) or inference(True).
+    https://github.com/huggingface/peft/blob/main/examples/token_classification/peft_lora_token_cls.ipynb
     """
     assert inference_mode in [True, False]
-    # https://github.com/huggingface/peft/blob/main/examples/token_classification/peft_lora_token_cls.ipynb
-    lora_modules = ["mobilebert.embeddings.word_embeddings", "mobilebert.embeddings.position_embeddings", "mobilebert.embeddings.token_type_embeddings", "mobilebert.embeddings.embedding_transformation"]
-    # TODO: Verify that correct modules are being selected for lora.
+    assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
+    
+    # Set the prefix in the HF model object, since the lora elements are the same for all 4
+    if model_name == "MobileBERT":
+        prefix = "mobilebert"
+    else:
+        prefix = "BertModel"
+    
+    lora_modules = [ prefix + ".embeddings.word_embeddings", prefix + ".embeddings.position_embeddings",
+                    prefix + ".embeddings.token_type_embeddings", prefix + ".embeddings.embedding_transformation"]
+
     peft_config = LoraConfig(
         task_type=TaskType.TOKEN_CLS, inference_mode=inference_mode, r=16, lora_alpha=16, lora_dropout=0.1, bias="all", target_modules=lora_modules
     )
     # TODO: Investigate Lora parameters, used ones from tutorial example.
     return peft_config
-
 
 def check_mobilebert_folder(verbose=False):
     """
