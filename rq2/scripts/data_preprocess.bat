@@ -20,11 +20,11 @@ echo "Preprocessing FINER test data"
 ::python finer_preprocess.py --output-dir "./processed" --split "test"  --vocab-size 50000 --max-len 728
 
 echo "Converting train data to XML format"
-python preprocess.py --text-path "./processed_train/texts.npy" --label-path "./processed_train/tags.npy" --vocab-path "./processed_train/vocab.npy" --max-len 500
+python preprocess.py --text-path "./processed_train/texts.npy" --tokenized-path "./processed_train/tokenized.npy" --label-path "./processed_train/tags.npy" --vocab-path "./processed_train/vocab.npy" --max-len 500
 
 echo "Converting test data to XML format"
-python preprocess.py --text-path "./processed_test/texts.npy" --label-path "./processed_test/tags.npy" --vocab-path "./processed_test/vocab.npy"  --max-len 500
+python preprocess.py --text-path "./processed_test/texts.npy" --tokenized-path "./processed_test/tokenized.npy" --label-path "./processed_test/tags.npy" --vocab-path "./processed_test/vocab.npy"  --max-len 500
 
 echo "All data preprocessed and ready for XML model training."
 
-pause
+cd scripts
