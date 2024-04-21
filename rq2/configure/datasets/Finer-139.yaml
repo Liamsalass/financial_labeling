@@ -1,0 +1,22 @@
+name: Finer-139
+
+train:
+  texts: data/Finer-139/train_texts.npy
+  labels: data/Finer-139/train_labels.npy
+
+valid:
+  size: 4000
+
+test:
+  texts: data/Finer-139/test_texts.npy
+
+embedding:
+  emb_init: data/Finer-139/emb_init.npy
+
+output:
+  res: results
+
+labels_binarizer: data/Finer-139/labels_binarizer
+
+model:
+  emb_size: 300
