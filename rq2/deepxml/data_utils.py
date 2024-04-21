@@ -53,30 +53,49 @@ def get_data(text_file, label_file=None):
 
 
 def convert_to_binary(text_file, label_file=None, max_len=None, vocab=None, pad='<PAD>', unknown='<UNK>'):
+    texts = []
     with open(text_file) as fp:
-        texts = np.asarray([[vocab.get(word, vocab[unknown]) for word in line.split()]
-                           for line in tqdm(fp, desc='Converting token to id', leave=False)])
+        for line in tqdm(fp, desc='Converting token to id', leave=False):
+            word_indices = [vocab.get(word, vocab.get(unknown, 0)) for word in line.split()]
+            texts.append(word_indices)
+    texts = truncate_text(texts, max_len, vocab.get(pad, 0), vocab.get(unknown, 0))
+
     labels = None
     if label_file is not None:
+        labels = []
         with open(label_file) as fp:
-            labels = np.asarray([[label for label in line.split()]
-                                 for line in tqdm(fp, desc='Converting labels', leave=False)])
-    return truncate_text(texts, max_len, vocab[pad], vocab[unknown]), labels
+            for line in tqdm(fp, desc='Converting labels', leave=False):
+                label_indices = [int(label) for label in line.split()]  # Assuming labels are integers
+                labels.append(label_indices)
+        labels = truncate_text(labels, max_len, -1, -1)  # Assuming -1 can be a placeholder for pad/unknown labels
+
+    return texts, labels
 
 
 def truncate_text(texts, max_len=500, padding_idx=0, unknown_idx=1):
     if max_len is None:
-        return texts
-    texts = np.asarray([list(x[:max_len]) + [padding_idx] * (max_len - len(x)) for x in texts])
-    texts[(texts == padding_idx).all(axis=1), 0] = unknown_idx
-    return texts
+        return np.array(texts)  # Direct conversion if no max_len provided
+    truncated_texts = []
+    for x in texts:
+        if len(x) < max_len:
+            # Extend with padding if the text is shorter than max_len
+            x = list(x) + [padding_idx] * (max_len - len(x))
+        else:
+            # Cut the text if it's longer than max_len
+            x = x[:max_len]
+        truncated_texts.append(x)
+
+    # Convert the list of lists into a NumPy array
+    truncated_texts = np.asarray(truncated_texts, dtype=np.int32)
+    return truncated_texts
 
 
-def get_mlb(mlb_path, labels=None) -> MultiLabelBinarizer:
+def get_mlb(mlb_path, labels=None):
     if os.path.exists(mlb_path):
         return joblib.load(mlb_path)
     mlb = MultiLabelBinarizer(sparse_output=True)
-    mlb.fit(labels)
+    if labels is not None:
+        mlb.fit(labels)
     joblib.dump(mlb, mlb_path)
     return mlb
 
