@@ -5,8 +5,7 @@ import torch
 import wandb
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification, TrainingArguments, Trainer
 from peft import PeftModel, PeftConfig
-from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
-from utils.metrics import compute_metrics
+from rq3_utils import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape, compute_metrics
 
 if __name__ == "__main__":
     wandb.init(mode="disabled")  # Disable wandb for this file.

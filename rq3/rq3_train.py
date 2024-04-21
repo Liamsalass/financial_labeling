@@ -5,12 +5,8 @@ import torch
 import torch_optimizer
 import wandb
 from copy import deepcopy
-from peft import get_peft_model
-from utils.metrics import compute_metrics
-from utils.rq3_utils import return_mobilebert_tokenizer, return_mobilebert_model, return_peft_config
-from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
-from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer, TrainerCallback
-
+from rq3_utils import compute_metrics
+from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer, TrainerCallback, BitsAndBytesConfig
 
 class CustomCallback(TrainerCallback):
     """
@@ -31,19 +27,6 @@ class CustomCallback(TrainerCallback):
 if __name__ == "__main__":
     wandb.init(mode="disabled")  # Disable wandb for this file.
 
-    print("CUDA available: ", torch.cuda.is_available())
-    if torch.cuda.is_available():
-        print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
-    else:
-        print("CUDA unavailable, using CPU")
-    
-    # Load the train and val dataset splits.
-    print("Loading train dataset.")
-    train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
-    print("Train dataset loaded. Loading val dataset.")
-    val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
-    print("Val dataset loaded")
-
     # Parsing command line args
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Training code')
     parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to train. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
@@ -56,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument('-peft', type=int, default=1, help='Specify whether or not to use PEFT during training [0/1].')
     arguments = parser.parse_args()
 
-    # TODO: Command line arg to load a model from a checkpoint and continue training
+    # TODO: Command line arg to load a model from a checkpoint and continue training?
 
     # Command line args into variables
     model_name = arguments.model_name
@@ -67,6 +50,30 @@ if __name__ == "__main__":
     val_batch_size_per_device = arguments.val_batch_size
     epochs = arguments.epochs
     use_peft = arguments.peft
+
+    print("CUDA available: ", torch.cuda.is_available())
+    if torch.cuda.is_available():
+        print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
+        # FP4 requires GPU, setting model quantization config accordingly
+        if use_peft == 1:
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16
+            )
+        else:
+            bnb_config = None
+    else:
+        print("CUDA unavailable, using CPU")
+        bnb_config = None
+    
+    # Load the train and val dataset splits.
+    print("Loading train dataset.")
+    train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
+    print("Train dataset loaded. Loading val dataset.")
+    val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
+    print("Val dataset loaded")
 
     # Verifying command line args
     assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
@@ -101,35 +108,39 @@ if __name__ == "__main__":
 
     # Load the tokenizer and model object, then tokenize the train and val sets
     if model_name == "MobileBERT":
-        model = return_mobilebert_model(id2label, label2id)
+        from rq3_utils import return_mobilebert_model, return_mobilebert_tokenizer, tokenize_and_align_labels_mobilebert
+        model = return_mobilebert_model(id2label, label2id, bnb_config)
         tokenizer = return_mobilebert_tokenizer()
         tokenized_train = train_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
         tokenized_val = val_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
     elif model_name == "SEC-BERT-BASE":
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base", num_labels=279, id2label=id2label, label2id=label2id)
+        from rq3_utils import tokenize_and_align_labels_sec_bert_base
+        # TODO: Add fp4 config for SEC-BERT family of models.
+        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base", num_labels=279, id2label=id2label, label2id=label2id, quantization_config=bnb_config)
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-base")
         tokenized_train = train_dataset.map(tokenize_and_align_labels_sec_bert_base, batched=True)
         tokenized_val = val_dataset.map(tokenize_and_align_labels_sec_bert_base, batched=True)
     elif model_name == "SEC-BERT-NUM":
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-num", num_labels=279, id2label=id2label, label2id=label2id)
+        from rq3_utils import tokenize_and_align_labels_sec_bert_num
+        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-num", num_labels=279, id2label=id2label, label2id=label2id, quantization_config=bnb_config)
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-num")
         tokenized_train = train_dataset.map(tokenize_and_align_labels_sec_bert_num, batched=True) # Apply SEC-BERT-NUM preprocessing
         tokenized_val = val_dataset.map(tokenize_and_align_labels_sec_bert_num, batched=True)
     elif model_name == "SEC-BERT-SHAPE":
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-shape", num_labels=279, id2label=id2label, label2id=label2id)
+        from rq3_utils import tokenize_and_align_labels_sec_bert_shape
+        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-shape", num_labels=279, id2label=id2label, label2id=label2id, quantization_config=bnb_config)
         tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
         tokenized_train = train_dataset.map(tokenize_and_align_labels_sec_bert_shape, batched=True) # Apply SEC-BERT-SHAPE preprocessing
         tokenized_val = val_dataset.map(tokenize_and_align_labels_sec_bert_shape, batched=True)
-
-    # NOTE: SEC-BERT family of models is assumed to have a linear classification layer after BERT. Unsure if there should be something else.
-        # Check FiNER-139 paper for and GitHub for true architecture.
 
     # For creating batches of examples
     data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
 
     # PEFT
     if use_peft == 1:
-        peft_config = return_peft_config(inference_mode=False, model_name=model_name)
+        from rq3_utils import return_peft_config
+        from peft import get_peft_model
+        peft_config = return_peft_config(inference_mode=False)
         model = get_peft_model(model, peft_config) 
         print(model_name + " PEFT parameter overview: ")
         model.print_trainable_parameters()
@@ -152,6 +163,7 @@ if __name__ == "__main__":
         output_dir=checkpoint_path,
         per_device_train_batch_size=train_batch_size_per_device,
         per_device_eval_batch_size=val_batch_size_per_device,
+        lr_scheduler_type="constant",  # Disables LR scheduling which happens by default in HF
         num_train_epochs=epochs,
         evaluation_strategy="epoch",
         save_strategy="epoch",
@@ -171,7 +183,7 @@ if __name__ == "__main__":
         compute_metrics=compute_metrics
     )
     
-    # TODO: Is it the callback? or location of compute metrics?
+    # https://huggingface.co/docs/accelerate/usage_guides/checkpoint
 
     # Add callback to track training metrics
     trainer.add_callback(CustomCallback(trainer))
