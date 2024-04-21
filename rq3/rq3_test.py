@@ -2,11 +2,15 @@ import datasets
 import argparse
 import os
 import torch
+import wandb
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification, TrainingArguments, Trainer
 from peft import PeftModel, PeftConfig
-from rq3_utils import tokenize_and_align_labels_mobilebert, sec_bert_num_preprocess, sec_bert_shape_preprocess, compute_metrics, return_mobilebert_peft_config
+from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
+from utils.rq3_utils import compute_metrics, return_mobilebert_peft_config
 
 if __name__ == "__main__":
+    wandb.init(mode="disabled")  # Disable wandb for this file.
+
     print("CUDA available: ", torch.cuda.is_available())
     if torch.cuda.is_available():
         print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
@@ -24,7 +28,7 @@ if __name__ == "__main__":
     parser.add_argument('-checkpoint_path', type=str, default="rq3_model/checkpoint-32", help='Specify the relative path to the Hugging Face model checkpoint to evaluate.')
     parser.add_argument('-save_results', type=bool, default=True, help='Specify whether or not to save the test metrics to a file.')
     parser.add_argument('-batch_size', type=int, default=16, help='Batch size per device')
-    parser.aparser.add_argument('-peft', type=int, default=1, help='Specify whether or not the checkpoint model used PEFT during training [0/1].')
+    parser.add_argument('-peft', type=int, default=1, help='Specify whether or not the checkpoint model used PEFT during training [0/1].')
     arguments = parser.parse_args()
     
     model_name = arguments.model_name
@@ -44,12 +48,10 @@ if __name__ == "__main__":
     else:
         print("Testing " + model_name + " on full FiNER-139 test set with " + str(len(test_dataset)) + " samples.")
     
-    if model_name == "MobileBERT":
-        # NOTE: Check Below doesn't check for the contents of the directory. Could possibly verify this to ensure that the weights are in the folder.
-        # NOTE: Checkpoint paths are only being used for MobileBERT. May need to use them for the SEC-BERT models since these don't come with classifier weights.
-        full_checkpoint_path = os.getcwd() + "/" + checkpoint_path
-        assert os.path.isdir(full_checkpoint_path) is True  # Verify checkpoint dir exists
-        print("Testing " + model_name + " checkpoint stored in the " + checkpoint_path + " folder")
+    # NOTE: Check Below doesn't check for the contents of the directory. Could possibly verify this to ensure that the weights are in the folder.
+    full_checkpoint_path = os.getcwd() + "/" + checkpoint_path
+    assert os.path.isdir(full_checkpoint_path) is True  # Verify checkpoint dir exists
+    print("Testing " + model_name + " checkpoint stored in the " + checkpoint_path + " folder")
 
     assert 1 <= batch_size_per_device <= len(test_dataset)
 
@@ -79,18 +81,19 @@ if __name__ == "__main__":
             tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
         
         tokenized_test = test_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
+
     elif model_name == "SEC-BERT-BASE":
-        # NOTE: SEC-BERT Classifier weights and biases are not loaded. The HF pretrained model is meant for fill-masking. See if we can load these weights from somewhere?
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base")
-        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-base")
+        model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+        tokenized_test = test_dataset.map(tokenize_and_align_labels_sec_bert_base, batched=True)
     elif model_name == "SEC-BERT-NUM":
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-num")
-        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-num")
-        tokenized_test = test_dataset.map(sec_bert_num_preprocess, batched=True)  # Apply SEC-BERT-NUM preprocessing
+        model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+        tokenized_test = test_dataset.map(tokenize_and_align_labels_sec_bert_num, batched=True) # Apply SEC-BERT-NUM preprocessing
     elif model_name == "SEC-BERT-SHAPE":
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-shape")
-        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
-        tokenized_test = test_dataset.map(sec_bert_shape_preprocess, batched=True)  # Apply SEC-BERT-SHAPE preprocessing
+        model = AutoModelForTokenClassification.from_pretrained(checkpoint_path)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+        tokenized_test = test_dataset.map(tokenize_and_align_labels_sec_bert_shape, batched=True) # Apply SEC-BERT-SHAPE preprocessing
     
     print(model_name + " Parameter Count: ", model.num_parameters())
 
@@ -124,7 +127,6 @@ if __name__ == "__main__":
             "\nsamples_per_second: ", test_results["eval_samples_per_second"])
     
 
-    
     if save_results:
         # Make file name for results file
         if subset_size == -1:
@@ -133,7 +135,7 @@ if __name__ == "__main__":
             results_full_path = os.getcwd() + "/results/" + model_name + "-test-results-subset-" + str(subset_size) + ".txt"
         
         # Attempt to write results to txt file.
-        try: 
+        try:
             with open(results_full_path, "w") as results_file:
                 print(model_name + " model from checkpoint: " + checkpoint_path + "\nResults: \nmicro/overall precision: ",
                         test_results["eval_micro/overall precision"], "\nmicro/overall recall: ", test_results["eval_micro/overall recall"],

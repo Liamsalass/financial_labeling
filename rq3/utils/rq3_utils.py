@@ -1,91 +1,10 @@
 import datasets
 import evaluate
 import numpy as np
-import re
-import spacy
 import os
 import requests
 from peft import LoraConfig, TaskType
 from transformers import AutoTokenizer, AutoModelForTokenClassification
-
-def tokenize_and_align_labels_mobilebert(examples):
-    """
-    https://huggingface.co/docs/transformers/en/tasks/token_classification
-    https://colab.research.google.com/github/huggingface/notebooks/blob/main/examples/token_classification.ipynb#scrollTo=vc0BSBLIIrJQ
-    Function to align tokens and labels. 
-    """
-    # Load MobileBERT tokenizer.
-    tokenizer = return_mobilebert_tokenizer()
-
-    tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
-
-    label_all_tokens = True # Bool which is enabled to label all tokens. Otherwise, first token only.
-
-    labels = []
-    for i, label in enumerate(examples[f"ner_tags"]):
-        word_ids = tokenized_inputs.word_ids(batch_index=i)  # Map tokens to their respective word.
-        previous_word_idx = None
-        label_ids = []
-        for word_idx in word_ids:
-            # Special tokens have a word id that is None. We set the label to -100 so they are automatically
-            # ignored in the loss function.
-            if word_idx is None:
-                label_ids.append(-100)
-            # We set the label for the first token of each word.
-            elif word_idx != previous_word_idx:
-                label_ids.append(label[word_idx])
-            # For the other tokens in a word, we set the label to either the current label or -100, depending on
-            # the label_all_tokens flag.
-            else:
-                label_ids.append(label[word_idx] if label_all_tokens else -100)
-            previous_word_idx = word_idx
-            
-        labels.append(label_ids)
-
-    tokenized_inputs["labels"] = labels
-    return tokenized_inputs
-
-
-def sec_bert_num_preprocess(examples):
-    """
-    From https://huggingface.co/nlpaueb/sec-bert-num
-    """
-    spacy_tokenizer = spacy.load("en_core_web_sm")
-
-    for idx, sentence in enumerate(examples["tokens"]):
-        tokens = [spacy_tokenizer(tok).text for tok in sentence]
-        processed_text = []
-        for token in tokens:
-            if re.fullmatch(r"(\d+[\d,.]*)|([,.]\d+)", token):
-                processed_text.append('[NUM]')
-            else:
-                processed_text.append(token)
-        examples["tokens"][idx] = processed_text
-    return examples
-
-
-def sec_bert_shape_preprocess(examples):
-    """
-    From: https://huggingface.co/nlpaueb/sec-bert-shape
-    """
-    tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
-    
-    spacy_tokenizer = spacy.load("en_core_web_sm")
-
-    for idx, sentence in enumerate(examples["tokens"]):
-        tokens = [spacy_tokenizer(tok).text for tok in sentence]
-        processed_text = []
-        for token in tokens:
-            if re.fullmatch(r"(\d+[\d,.]*)|([,.]\d+)", token):
-                shape = '[' + re.sub(r'\d', 'X', token) + ']'
-                if shape in tokenizer.additional_special_tokens:
-                    processed_text.append(shape)
-                else:
-                    processed_text.append('[NUM]')
-            else:
-                processed_text.append(token)
-        examples["tokens"][idx] = processed_text
-    return examples
 
 def compute_metrics(p):
     """
