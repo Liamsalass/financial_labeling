@@ -18,7 +18,14 @@ def tokenize_and_align_labels_mobilebert(examples):
     # Load MobileBERT tokenizer.
     tokenizer = return_model_tokenizer("MobileBERT")
 
-    tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
+    # TODO: Look into max length param for other models
+    tokenized_inputs = tokenizer(
+        examples["tokens"],
+        truncation=True,
+        padding="max_length",
+        max_length=512,
+        is_split_into_words=True
+    )
 
     label_all_tokens = True # Bool which is enabled to label all tokens. Otherwise, first token only.
 
