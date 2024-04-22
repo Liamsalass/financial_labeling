@@ -10,6 +10,4 @@ if errorlevel 1 (
 
 call conda activate xml
 
-call code .
-
 echo "Done"

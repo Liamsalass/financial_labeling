@@ -27,3 +27,4 @@ rq2/emb_init.npy
 rq2/finer_labels.npy
 rq2/finer_tokenized.npy
 rq2/vocab.npy
+rq2/results/mlb_finer.pkl

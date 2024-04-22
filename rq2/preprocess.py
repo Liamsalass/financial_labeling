@@ -55,7 +55,7 @@ def main(text_path, tokenized_path, label_path, vocab_path, emb_path, w2v_model,
     logger.info(F'Size of Samples: {len(texts)}')
     np.save(os.path.splitext(text_path)[0], texts)
     if labels is not None:
-        assert len(texts) == len(labels)
+        assert len(texts) == len(labels), 'Size of texts and labels must be the same.'
         np.save(os.path.splitext(label_path)[0], labels)
 
 
