@@ -8,6 +8,7 @@ from peft import PeftModel, PeftConfig
 from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
 from utils.metrics import compute_metrics
 
+
 if __name__ == "__main__":
     wandb.init(mode="disabled")  # Disable wandb for this file.
 
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Testing code')
     parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to test. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
     parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the test set. If left empty, use the entire test set.')
-    parser.add_argument('-checkpoint_path', type=str, default="rq3_model/checkpoint-32", help='Specify the relative path to the Hugging Face model checkpoint to evaluate.')
+    parser.add_argument('-checkpoint_path', type=str, default="mobilebert_model/checkpoint-400", help='Specify the relative path to the Hugging Face model checkpoint to evaluate.')
     parser.add_argument('-save_results', type=bool, default=True, help='Specify whether or not to save the test metrics to a file.')
     parser.add_argument('-batch_size', type=int, default=16, help='Batch size per device')
     parser.add_argument('-peft', type=int, default=1, help='Specify whether or not the checkpoint model used PEFT during training [0/1].')

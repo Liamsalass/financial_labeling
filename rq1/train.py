@@ -11,6 +11,7 @@ from utils.rq3_utils import return_mobilebert_tokenizer, return_mobilebert_model
 from utils.tokenize_and_align import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
 from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer, TrainerCallback
 from accelerate import Accelerator
+import random
 
 
 
@@ -45,7 +46,7 @@ if __name__ == "__main__":
     # Parsing command line args
     parser = argparse.ArgumentParser(description='CMPE 351 RQ3 Training code')
     parser.add_argument('-model_name', type=str, default='MobileBERT', help='Selected model to train. Enter one of "MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"')
-    parser.add_argument('-subset', type=int, default=-1, help='Specify to use a subset of the train and val set. If left empty, use the entire train and val sets.')
+    parser.add_argument('-subset_percent', type=int, default=-1, help='Specify to use a percentage subset of the train and val set. If left empty, use the entire train and val sets.')
     parser.add_argument('-output_checkpoint_path', type=str, default="mobilebert_model", help='Specify the relative path to the checkpoint folder.')
     parser.add_argument('-lr', type=float, default=2e-5, help='Learning rate')
     parser.add_argument('-train_batch_size', type=int, default=16, help='Train batch size per device')
@@ -59,7 +60,7 @@ if __name__ == "__main__":
 
     # Command line args into variables
     model_name = arguments.model_name
-    subset_size = arguments.subset
+    subset_percentage = arguments.subset_percent / 100
     checkpoint_path = arguments.output_checkpoint_path
     learning_rate = arguments.lr
     train_batch_size_per_device = arguments.train_batch_size
@@ -68,17 +69,27 @@ if __name__ == "__main__":
     use_peft = arguments.peft
     fp16 = arguments.fp16
 
+    print(subset_percentage)
+
     # Verifying command line args
     assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
 
-    if subset_size != -1:
-        assert 0 < subset_size < len(val_dataset)
-        # Selects the specified # of samples from the subset argument.
-        train_dataset = train_dataset.select(range(subset_size))
-        val_dataset = val_dataset.select(range(subset_size))
-        print("Training " + model_name + " on a subset of FiNER-139 train/val sets with " + str(subset_size) + " samples each.")
-    else:
+    if subset_percentage == -1:
         print("Training " + model_name + " on full FiNER-139 train/val sets with " + str(len(train_dataset)) + " train samples and " + str(len(val_dataset)) + " val samples.")
+    else:
+        random.seed(42)
+        train_indices = list(range(len(train_dataset)))
+        val_indices = list(range(len(val_dataset)))
+        random.shuffle(train_indices)
+        random.shuffle(val_indices)
+
+        # Selects the specified # of samples from the subset argument.
+        train_subset_size = int(subset_percentage * len(train_dataset))
+        train_dataset = train_dataset.select(train_indices[:train_subset_size])
+        val_subset_size = int(subset_percentage * len(val_dataset))
+        val_dataset = val_dataset.select(val_indices[:val_subset_size])
+        print("Training " + model_name + " on a subset of FiNER-139 with " + str(train_subset_size) + "train samples and " + str(val_subset_size) +" val samples.")
+
     
     full_checkpoint_path = os.getcwd() + "/" + checkpoint_path
     if os.path.isdir(full_checkpoint_path) is False:
@@ -157,6 +168,7 @@ if __name__ == "__main__":
     training_args = TrainingArguments(
         output_dir=checkpoint_path,
         per_device_train_batch_size=train_batch_size_per_device,
+        per_device_eval_batch_size=val_batch_size_per_device,
         gradient_accumulation_steps=gradient_accumulation_steps,
         warmup_steps=100,
         max_steps=steps,
@@ -165,7 +177,7 @@ if __name__ == "__main__":
         evaluation_strategy="steps",
         save_strategy="steps",
         save_steps=20,
-        eval_steps=100,
+        eval_steps=20,
         load_best_model_at_end=False,
         use_cpu=False
     )
