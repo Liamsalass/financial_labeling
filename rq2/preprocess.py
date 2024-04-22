@@ -43,8 +43,8 @@ def main(text_path, tokenized_path, label_path, vocab_path, emb_path, w2v_model,
 
     if not os.path.exists(vocab_path):
         logger.info(F'Building Vocab. {text_path}')
-        with open(text_path) as fp:
-            vocab, emb_init = build_vocab(fp, w2v_model, vocab_size=vocab_size)
+        with open(text_path, encoding='utf-8', errors='ignore') as fp:
+                vocab, emb_init = build_vocab(fp, w2v_model, vocab_size=vocab_size)
         np.save(vocab_path, vocab)
         np.save(emb_path, emb_init)
     vocab = {word: i for i, word in enumerate(np.load(vocab_path))}

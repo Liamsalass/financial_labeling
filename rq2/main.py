@@ -46,6 +46,7 @@ def main(data_cnf, model_cnf, mode, tree_id):
                                                                             random_state=random_state)
         else:
             valid_x, valid_labels = get_data(data_cnf['valid']['texts'], data_cnf['valid']['labels'])
+
         mlb = get_mlb(data_cnf['labels_binarizer'], np.hstack((train_labels, valid_labels)))
         train_y, valid_y = mlb.transform(train_labels), mlb.transform(valid_labels)
         labels_num = len(mlb.classes_)

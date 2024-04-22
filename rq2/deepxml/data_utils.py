@@ -29,11 +29,11 @@ def build_vocab(texts: Iterable, w2v_model: Union[KeyedVectors, str], vocab_size
     vocab, emb_init = [pad, unknown], [np.zeros(emb_size), np.random.uniform(-1.0, 1.0, emb_size)]
     
     counter = Counter(token for text in texts for token in set(text.split()))
-    for word, freq in sorted(counter.items(), key=lambda x: (x[1], x[0] in w2v_model), reverse=True):
-        if word in w2v_model or freq >= freq_times:
+    for word, freq in sorted(counter.items(), key=lambda x: (x[1], x[0] in w2v_model.wv), reverse=True):
+        if word in w2v_model.wv or freq >= freq_times:
             vocab.append(word)
             word = '.' if word == sep else word
-            emb_init.append(w2v_model[word] if word in w2v_model else np.random.uniform(-1.0, 1.0, emb_size))
+            emb_init.append(w2v_model.wv[word] if word in w2v_model.wv else np.random.uniform(-1.0, 1.0, emb_size))
         if freq < max_times or len(vocab) >= vocab_size:
             break
 
@@ -55,16 +55,20 @@ def get_data(text_file, label_file=None):
 
 
 def convert_to_binary(text_file, label_file=None, max_len=None, vocab=None, pad='<PAD>', unknown='<UNK>'):
-    with open(text_file) as fp:
-        texts = np.asarray([[vocab.get(word, vocab[unknown]) for word in line.split()]
-                           for line in tqdm(fp, desc='Converting token to id', leave=False)])
+    with open(text_file, encoding='utf-8', errors='ignore') as fp:
+        texts = [line.split() for line in tqdm(fp, desc='Converting token to id', leave=False)]
+        texts = [[vocab.get(word, vocab[unknown]) for word in line] for line in texts]
+        if max_len is not None:
+            texts = [line[:max_len] if len(line) > max_len else line + [vocab[pad]] * (max_len - len(line)) for line in texts]
+        texts = np.asarray(texts)
     labels = None
     if label_file is not None:
         with open(label_file) as fp:
-            labels = np.asarray([[label for label in line.split()]
-                                 for line in tqdm(fp, desc='Converting labels', leave=False)])
-    return truncate_text(texts, max_len, vocab[pad], vocab[unknown]), labels
-
+            labels = [line.split() for line in tqdm(fp, desc='Converting labels', leave=False)]
+            if max_len is not None:
+                labels = [line[:max_len] if len(line) > max_len else line + ['O'] * (max_len - len(line)) for line in labels]
+            labels = np.asarray(labels)
+    return texts, labels
 
 def truncate_text(texts, max_len=500, padding_idx=0, unknown_idx=1):
     if max_len is None:

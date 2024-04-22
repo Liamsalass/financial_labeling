@@ -1,19 +1,19 @@
 name: FINER-139
 
 train:
-  texts: processed/finer_tokenized_train.npy  # Adjust to where the tokenized training data is saved
-  labels: processed/finer_train_labels.npy
+  texts: finer_tokenized.npy  # Adjust to where the tokenized training data is saved
+  labels: finer_labels.npy
 
 valid:
-  size: 0.1  # Use 10% of the training data as validation data
+  size: 1000  # Use 10% of the training data as validation data
 
 test:
-  texts: processed/finer_tokenized_test.npy  # Adjust to where the tokenized testing data is saved
+  texts: finer_tokenized.npy  # Adjust to where the tokenized testing data is saved
 
 embedding:
-  emb_init: processed/emb_init.npy  # Adjust to where the embedding initialization is stored
+  emb_init: emb_init.npy  # Adjust to where the embedding initialization is stored
 
 output:
   res: results/finer_139  # Folder to save the results
 
-labels_binarizer: processed/mlb_finer.pkl  # Path for saving/loading the MultiLabel Binarizer
+labels_binarizer: results/mlb_finer.pkl  # Path for saving/loading the MultiLabel Binarizer
