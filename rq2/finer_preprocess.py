@@ -21,7 +21,7 @@ def main():
 
     with open(output_text_path, 'w', encoding='utf-8') as text_file, \
          open(output_label_path, 'w', encoding='utf-8') as label_file:
-        for sample in tqdm(dataset, desc='Processing'):
+        for sample in tqdm(dataset, desc='Processing', leave=False):
             # Concatenate tokens into a single string and tokenize
             text = tokenize(' '.join(sample['tokens']))
             # Convert tag indices to space-separated string

@@ -18,6 +18,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 python preprocess.py --text-path finer_texts.txt --tokenized-path finer_tokenized.txt --label-path finer_labels.txt --vocab-path vocab.npy --emb-path emb_init.npy --w2v-model word2vec.model --vocab-size 300 --max-len 700
+::python preprocess.py --text-path finer_texts.txt --tokenized-path finer_tokenized.txt --label-path finer_labels.txt --emb-path emb_init.npy --w2v-model word2vec.model --vocab-size 300 --max-len 700
 if %ERRORLEVEL% neq 0 (
     echo "preprocess.py failed"
     cd scripts

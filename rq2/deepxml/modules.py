@@ -25,7 +25,7 @@ class Embedding(nn.Module):
             if vocab_size is not None:
                 assert vocab_size == emb_init.shape[0]
             if emb_size is not None:
-                assert emb_size == emb_init.shape[1]
+                assert emb_size == emb_init.shape[1], 'Inconsistent embedding size: %d vs %d' % (emb_size, emb_init.shape[1]) 
             vocab_size, emb_size = emb_init.shape
         self.emb = nn.Embedding(vocab_size, emb_size, padding_idx=padding_idx, sparse=True,
                                 _weight=torch.from_numpy(emb_init).float() if emb_init is not None else None)

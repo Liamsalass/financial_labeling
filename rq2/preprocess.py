@@ -31,13 +31,13 @@ def tokenize(sentence: str, sep='/SEP/'):
               help='Path of vocab, if it doesn\'t exit, build one and save it.')
 @click.option('--emb-path', type=click.Path(), default=None, help='Path of word embedding.')
 @click.option('--w2v-model', type=click.Path(), default=None, help='Path of Gensim Word2Vec Model.')
-@click.option('--vocab-size', type=click.INT, default=500000, help='Size of vocab.')
+@click.option('--vocab-size', type=click.INT, default=300, help='Size of vocab.')
 @click.option('--max-len', type=click.INT, default=500, help='Truncated length.')
 def main(text_path, tokenized_path, label_path, vocab_path, emb_path, w2v_model, vocab_size, max_len):
     if tokenized_path is not None:
         logger.info(F'Tokenizing Text. {text_path}')
         with open(text_path, encoding='utf-8') as fp, open(tokenized_path, 'w', encoding='utf-8') as fout:
-            for line in tqdm(fp, desc='Tokenizing'):
+            for line in tqdm(fp, desc='Tokenizing', leave=False):
                 print(*tokenize(line), file=fout)
         text_path = tokenized_path
 
