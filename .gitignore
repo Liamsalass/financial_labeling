@@ -23,3 +23,7 @@ word2vec.model
 rq2/finer_labels.txt
 rq2/finer_texts.txt
 rq2/finer_tokenized.txt
+rq2/emb_init.npy
+rq2/finer_labels.npy
+rq2/finer_tokenized.npy
+rq2/vocab.npy
