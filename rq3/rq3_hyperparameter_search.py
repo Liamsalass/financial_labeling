@@ -5,10 +5,8 @@ import numpy as np
 import torch
 import torch_optimizer
 import wandb
-from peft import get_peft_model
-from rq3_utils import tokenize_and_align_labels_mobilebert, tokenize_and_align_labels_sec_bert_base, tokenize_and_align_labels_sec_bert_num, tokenize_and_align_labels_sec_bert_shape
-from rq3_utils import return_mobilebert_tokenizer, return_mobilebert_model, return_peft_config, compute_metrics
-from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer, AutoModelForTokenClassification, AutoTokenizer
+from rq3_utils import compute_metrics
+from transformers import DataCollatorForTokenClassification, TrainingArguments, Trainer
     
 
 if __name__ == "__main__":
@@ -65,34 +63,36 @@ if __name__ == "__main__":
     id2label = {i: element for i, element in enumerate(finer_tag_names)}
     label2id = {value: i for i, value in enumerate(finer_tag_names)}
 
-   # Load the tokenizer and model object, then tokenize the train and val sets
+    from rq3_utils import return_model_object, return_model_tokenizer, tokenize_and_align_labels_mobilebert
+    model = return_model_object(model_name, id2label, label2id, quantization_config=None)
+    tokenizer = return_model_tokenizer(model_name)
+
+    # Load the tokenizer and model object, then tokenize the train and val sets
+    # Tokenize the train and val sets
     if model_name == "MobileBERT":
-        model = return_mobilebert_model(id2label, label2id)
-        tokenizer = return_mobilebert_tokenizer()
-        tokenized_train = train_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
-        tokenized_val = val_dataset.map(tokenize_and_align_labels_mobilebert, batched=True)
+        from rq3_utils import tokenize_and_align_labels_mobilebert
+        tokenize_and_align_fn = tokenize_and_align_labels_mobilebert
     elif model_name == "SEC-BERT-BASE":
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-base", num_labels=279, id2label=id2label, label2id=label2id)
-        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-base")
-        tokenized_train = train_dataset.map(tokenize_and_align_labels_sec_bert_base, batched=True)
-        tokenized_val = val_dataset.map(tokenize_and_align_labels_sec_bert_base, batched=True)
+        from rq3_utils import tokenize_and_align_labels_sec_bert_base
+        tokenize_and_align_fn = tokenize_and_align_labels_sec_bert_base
     elif model_name == "SEC-BERT-NUM":
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-num", num_labels=279, id2label=id2label, label2id=label2id)
-        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-num")
-        tokenized_train = train_dataset.map(tokenize_and_align_labels_sec_bert_num, batched=True) # Apply SEC-BERT-NUM preprocessing
-        tokenized_val = val_dataset.map(tokenize_and_align_labels_sec_bert_num, batched=True)
+        from rq3_utils import tokenize_and_align_labels_sec_bert_num
+        tokenize_and_align_fn = tokenize_and_align_labels_sec_bert_num
     elif model_name == "SEC-BERT-SHAPE":
-        model = AutoModelForTokenClassification.from_pretrained("nlpaueb/sec-bert-shape", num_labels=279, id2label=id2label, label2id=label2id)
-        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/sec-bert-shape")
-        tokenized_train = train_dataset.map(tokenize_and_align_labels_sec_bert_shape, batched=True) # Apply SEC-BERT-SHAPE preprocessing
-        tokenized_val = val_dataset.map(tokenize_and_align_labels_sec_bert_shape, batched=True)
+        from rq3_utils import tokenize_and_align_labels_sec_bert_shape
+        tokenize_and_align_fn = tokenize_and_align_labels_sec_bert_shape
+    
+    tokenized_train = train_dataset.map(tokenize_and_align_fn, batched=True)
+    tokenized_val = val_dataset.map(tokenize_and_align_fn, batched=True)
 
     # For creating batches of examples
     data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
 
     # PEFT
     if use_peft == 1:
-        peft_config = return_peft_config(inference_mode=False, model_name=model_name)
+        from rq3_utils import return_peft_config
+        from peft import get_peft_model
+        peft_config = return_peft_config(model_name=model_name, inference_mode=False)
         model = get_peft_model(model, peft_config) 
         print(model_name + " PEFT parameter overview: ")
         model.print_trainable_parameters()

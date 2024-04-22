@@ -340,21 +340,24 @@ def download_model_files(file_names, model_folder, hf_url):
     os.chdir('..')  # Move back one level to return to rq3 as the working directory
 # ======================END OF MOBILEBERT INSTALLATION FUNCTIONS======================
 
-def return_peft_config(inference_mode):
+def return_peft_config(model_name, inference_mode):
     """
     Returns the model's PEFT configuration using QLoRA
     inference_mode determines whether or not the model is being loaded for training(False) or inference(True).
     https://github.com/huggingface/peft/blob/main/examples/token_classification/peft_lora_token_cls.ipynb
     """
     assert inference_mode in [True, False]
+
+    # Set the prefix in the HF model object, since the lora elements are the same for all 4
+    if model_name == "MobileBERT":
+        prefix = "mobilebert"
+    else:
+        prefix = "BertModel"
+    
+    lora_modules = [ prefix + ".embeddings.word_embeddings", prefix + ".embeddings.position_embeddings",
+                    prefix + ".embeddings.token_type_embeddings", prefix + ".embeddings.embedding_transformation"]
+
     peft_config = LoraConfig(
-        task_type=TaskType.TOKEN_CLS, 
-        inference_mode=inference_mode,
-        r=8,
-        lora_alpha=32,
-        lora_dropout=0.05,
-        bias="all",  # TODO: Tweak bias in future? lora-only?
-        # target_modules=["query", "value"]  #basic lora
-        target_modules="all-linear"  # qlora
+        task_type=TaskType.TOKEN_CLS, inference_mode=inference_mode, r=16, lora_alpha=16, lora_dropout=0.1, bias="all", target_modules=lora_modules
     )
     return peft_config

@@ -36,9 +36,10 @@ if __name__ == "__main__":
     parser.add_argument('-lr', type=float, default=2e-5, help='Learning rate')
     parser.add_argument('-train_batch_size', type=int, default=16, help='Train batch size per device')
     parser.add_argument('-val_batch_size', type=int, default=16, help='Val batch size per device')
-    parser.add_argument('-epochs', type=int, default=2, help="If continuing training from a checkpoint, enter the total number of epochs you want to reach (start epoch + desired # of epochs)")
+    parser.add_argument('-steps', type=int, default=400, help="If continuing training from a checkpoint, enter the total number of steps you want to reach (start steps + desired # of steps)")
     parser.add_argument('-peft', type=int, default=1, help='Specify whether or not to use PEFT during training [0/1].')
     parser.add_argument('-quantize', type=int, default=0, help='Specify whether or not to use FP4 quantization during training [0/1].')
+    parser.add_argument('-fp16', type=int, default=1, help='Reduce memory consumption when training by setting model to half precision.')
     arguments = parser.parse_args()
 
     # Command line args into variables
@@ -49,50 +50,14 @@ if __name__ == "__main__":
     learning_rate = arguments.lr
     train_batch_size_per_device = arguments.train_batch_size
     val_batch_size_per_device = arguments.val_batch_size
-    epochs = arguments.epochs
+    steps = arguments.steps
     use_peft = arguments.peft
     quantize = arguments.quantize
-
-    print("CUDA available: ", torch.cuda.is_available())
-    if torch.cuda.is_available():
-        print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
-        # FP4 requires GPU, setting model quantization config accordingly
-        if use_peft == 1 and quantize == 1:
-            # NOTE: Quantization is causing some very odd behaviour with NaN loss and high 90s accuracy. Not working currently
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.bfloat16
-            )
-        else:
-            bnb_config = None
-    else:
-        print("CUDA unavailable, using CPU")
-        bnb_config = None
-    
-    if bnb_config is not None:
-        print("Performing FP4 quantization during training.")
-    
-    # Load the train and val dataset splits.
-    print("Loading train dataset.")
-    train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
-    print("Train dataset loaded. Loading val dataset.")
-    val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
-    print("Val dataset loaded")
+    use_fp16 = arguments.fp16
 
     # Verifying command line args
     assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
 
-    if subset_size != -1:
-        assert 0 < subset_size < len(val_dataset)
-        # Selects the specified # of samples from the subset argument.
-        train_dataset = train_dataset.select(range(subset_size))
-        val_dataset = val_dataset.select(range(subset_size))
-        print("Training " + model_name + " on a subset of FiNER-139 train/val sets with " + str(subset_size) + " samples each.")
-    else:
-        print("Training " + model_name + " on full FiNER-139 train/val sets with " + str(len(train_dataset)) + " train samples and " + str(len(val_dataset)) + " val samples.")
-    
     full_checkpoint_path = os.getcwd() + "/" + checkpoint_path
     if os.path.isdir(full_checkpoint_path) is False:
         os.mkdir(checkpoint_path)
@@ -103,11 +68,48 @@ if __name__ == "__main__":
         assert os.path.isdir(resume_from_checkpoint_path)
         print("Training " + model_name + " starting from the " + resume_from_checkpoint_path + " checkpoint")
 
+    # Load the train and val dataset splits.
+    print("Loading train dataset.")
+    train_dataset = datasets.load_dataset("nlpaueb/finer-139", split="train")
+    print("Train dataset loaded. Loading val dataset.")
+    val_dataset = datasets.load_dataset("nlpaueb/finer-139", split="validation")
+    print("Val dataset loaded")
+
     assert 0 < learning_rate < 1
     assert 1 <= train_batch_size_per_device <= len(train_dataset)
     assert 1 <= val_batch_size_per_device <= len(val_dataset)
-    assert 1 <= epochs <= 10  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.4.2.
+    assert 1 <= steps <= 10*(len(train_dataset) // train_batch_size_per_device)  # MobileBERT paper explains that they fine tune with 10 epochs max in section 4.4.2.
     assert use_peft in [0, 1]
+    assert quantize in [0, 1]
+    assert use_fp16 in [0, 1]
+
+    print("CUDA available: ", torch.cuda.is_available())
+    bnb_config = None
+    if torch.cuda.is_available():
+        print("CUDA current device: ", torch.cuda.current_device())  # CPU is -1. Else GPU
+        # FP4 requires GPU, setting model quantization config accordingly
+        if use_peft == 1 and quantize == 1:
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16
+            )
+    else:
+        print("CUDA unavailable, using CPU")
+    
+    if bnb_config is not None:
+        # NOTE: Quantization is causing some very odd behaviour with NaN loss and high 90s accuracy. Not working currently
+        print("Performing FP4 quantization during training.")
+    
+    if subset_size != -1:
+        assert 0 < subset_size < len(val_dataset)
+        # Selects the specified # of samples from the subset argument.
+        train_dataset = train_dataset.select(range(subset_size))
+        val_dataset = val_dataset.select(range(subset_size))
+        print("Training " + model_name + " on a subset of FiNER-139 train/val sets with " + str(subset_size) + " samples each.")
+    else:
+        print("Training " + model_name + " on full FiNER-139 train/val sets with " + str(len(train_dataset)) + " train samples and " + str(len(val_dataset)) + " val samples.")
 
     # Getting array of tags/labels
     finer_tag_names = train_dataset.features["ner_tags"].feature.names
@@ -136,7 +138,7 @@ if __name__ == "__main__":
         if use_peft == 1: # PEFT config
             from rq3_utils import return_peft_config
             from peft import get_peft_model
-            peft_config = return_peft_config(inference_mode=False)
+            peft_config = return_peft_config(model_name=model_name, inference_mode=False)
             model = get_peft_model(model, peft_config) 
         else:  # Only train the output/classification layer, freeze all other gradients
             for name, param in model.named_parameters():
@@ -183,16 +185,19 @@ if __name__ == "__main__":
         training_with_checkpoint = True
         # NOTE: automatically takes last checkpoint to train from.
 
-    # Training arguments
     training_args = TrainingArguments(
         output_dir=checkpoint_path,
         per_device_train_batch_size=train_batch_size_per_device,
         per_device_eval_batch_size=val_batch_size_per_device,
         lr_scheduler_type="constant",  # Disables LR scheduling which happens by default in HF
-        num_train_epochs=epochs,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
-        load_best_model_at_end=True,
+        max_steps=steps,
+        fp16=use_fp16,
+        logging_steps=True,
+        evaluation_strategy="steps",
+        save_strategy="steps",
+        save_steps=20,
+        eval_steps=100,
+        load_best_model_at_end=False,
         use_cpu=False
     )
 
