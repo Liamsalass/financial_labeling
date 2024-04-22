@@ -19,4 +19,4 @@ output:
 labels_binarizer: results/mlb_finer.pkl  # Path for saving/loading the MultiLabel Binarizer
 
 model:
-#  emb_size: 300
+  emb_size: 300
