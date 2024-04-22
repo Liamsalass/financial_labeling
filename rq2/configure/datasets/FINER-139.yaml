@@ -17,3 +17,6 @@ output:
   res: results/finer_139  # Folder to save the results
 
 labels_binarizer: results/mlb_finer.pkl  # Path for saving/loading the MultiLabel Binarizer
+
+model:
+#  emb_size: 300
