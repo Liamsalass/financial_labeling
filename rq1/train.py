@@ -52,6 +52,7 @@ if __name__ == "__main__":
     parser.add_argument('-val_batch_size', type=int, default=16, help='Val batch size per device')
     parser.add_argument('-steps', type=int, default=400)
     parser.add_argument('-peft', type=int, default=1, help='Specify whether or not to use PEFT during training [0/1].')
+    parser.add_argument('-fp16', type=bool, default=True, help='Reduce memory consumption when training by setting model to half precision.')
     arguments = parser.parse_args()
 
     # TODO: Command line arg to load a model from a checkpoint and continue training
@@ -65,6 +66,7 @@ if __name__ == "__main__":
     val_batch_size_per_device = arguments.val_batch_size
     steps = arguments.steps
     use_peft = arguments.peft
+    fp16 = arguments.fp16
 
     # Verifying command line args
     assert model_name in ["MobileBERT", "SEC-BERT-BASE", "SEC-BERT-NUM", "SEC-BERT-SHAPE"]
@@ -158,7 +160,7 @@ if __name__ == "__main__":
         gradient_accumulation_steps=gradient_accumulation_steps,
         warmup_steps=100,
         max_steps=steps,
-        fp16=True,
+        fp16=fp16,
         logging_steps=True,
         evaluation_strategy="steps",
         save_strategy="steps",
