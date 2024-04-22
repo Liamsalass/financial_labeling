@@ -24,19 +24,21 @@ __all__ = ['build_vocab', 'get_data', 'convert_to_binary', 'truncate_text', 'get
 def build_vocab(texts: Iterable, w2v_model: Union[KeyedVectors, str], vocab_size=500000,
                 pad='<PAD>', unknown='<UNK>', sep='/SEP/', max_times=1, freq_times=1):
     if isinstance(w2v_model, str):
-        w2v_model = KeyedVectors.load(w2v_model)
+        w2v_model = KeyedVectors.load(w2v_model)  # Ensure the model is loaded correctly
     emb_size = w2v_model.vector_size
     vocab, emb_init = [pad, unknown], [np.zeros(emb_size), np.random.uniform(-1.0, 1.0, emb_size)]
-    counter = Counter(token for t in texts for token in set(t.split()))
+    
+    counter = Counter(token for text in texts for token in set(text.split()))
     for word, freq in sorted(counter.items(), key=lambda x: (x[1], x[0] in w2v_model), reverse=True):
         if word in w2v_model or freq >= freq_times:
             vocab.append(word)
-            # We used embedding of '.' as embedding of '/SEP/' symbol.
             word = '.' if word == sep else word
             emb_init.append(w2v_model[word] if word in w2v_model else np.random.uniform(-1.0, 1.0, emb_size))
-        if freq < max_times or vocab_size == len(vocab):
+        if freq < max_times or len(vocab) >= vocab_size:
             break
+
     return np.asarray(vocab), np.asarray(emb_init)
+
 
 
 def get_word_emb(vec_path, vocab_path=None):

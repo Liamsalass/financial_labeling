@@ -19,3 +19,7 @@ rq3/wandb
 # They may need to be uploaded at some point when they are finalized though.
 rq2/processed_test/*
 rq2/processed_train/*
+word2vec.model
+rq2/finer_labels.txt
+rq2/finer_texts.txt
+rq2/finer_tokenized.txt

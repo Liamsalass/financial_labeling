@@ -36,7 +36,7 @@ def tokenize(sentence: str, sep='/SEP/'):
 def main(text_path, tokenized_path, label_path, vocab_path, emb_path, w2v_model, vocab_size, max_len):
     if tokenized_path is not None:
         logger.info(F'Tokenizing Text. {text_path}')
-        with open(text_path) as fp, open(tokenized_path, 'w') as fout:
+        with open(text_path, encoding='utf-8') as fp, open(tokenized_path, 'w', encoding='utf-8') as fout:
             for line in tqdm(fp, desc='Tokenizing'):
                 print(*tokenize(line), file=fout)
         text_path = tokenized_path
