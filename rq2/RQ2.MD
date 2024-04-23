@@ -10,3 +10,7 @@ lem is using the suggested long and short-term memory provided in deep learning 
 tionXML [7]. This method attempts to consider the context around and far away from a financial statistic to extract and
 label it better. This will significantly affect the model’s effectiveness but could be computationally expensive; making
 balancing a challenge for implementing the solution.
+
+# How to run
+Run the main.bat script to set up the environment, run FiNER preprocessing, run AttentionXML preprocessing, and begin training. 
+To preform validation, run the main script with the flag `--mode eval`.
