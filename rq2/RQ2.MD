@@ -14,3 +14,5 @@ balancing a challenge for implementing the solution.
 # How to run
 Run the main.bat script to set up the environment, run FiNER preprocessing, run AttentionXML preprocessing, and begin training. 
 To preform validation, run the main script with the flag `--mode eval`.
+
+NOTE: you will need to download your own word-to-vector model. We used the gensim model which can be found here at https://radimrehurek.com/gensim/models/word2vec.html 
